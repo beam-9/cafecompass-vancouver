@@ -54,13 +54,18 @@ def page_frame() -> None:
         section[data-testid="stSidebar"] label,
         section[data-testid="stSidebar"] span,
         section[data-testid="stSidebar"] div { color: #f7f4ee; }
+        section[data-testid="stSidebar"] input,
+        section[data-testid="stSidebar"] textarea { color: #20201d; }
+        [data-baseweb="tag"],
+        [data-baseweb="tag"] *,
+        .dark-note,
+        .dark-note * { color: #f7f4ee !important; }
         div[data-testid="stAlert"] * { color: #20201d; }
         [data-baseweb="popover"] * { color: #20201d; }
         h1, h2, h3 { letter-spacing: 0; }
         div[data-testid="stMetric"] { background: #fffaf0; border: 1px solid #d7c8aa; padding: 14px; border-radius: 8px; }
         .cc-note { border-left: 4px solid #0b6b5a; padding: 10px 14px; background: #fffaf0; }
-        .dark-note { background: #24231f; color: #f7f4ee; padding: 12px 14px; border-radius: 8px; }
-        .dark-note * { color: #f7f4ee; }
+        .dark-note { background: #24231f; padding: 12px 14px; border-radius: 8px; }
         </style>
         """,
         unsafe_allow_html=True,

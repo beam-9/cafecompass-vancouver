@@ -9,16 +9,17 @@ import requests
 from config import PROCESSED_DIR, ensure_dirs
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+# Covers Vancouver, UBC, Richmond, and nearby food corridors used in the demo.
+VANCOUVER_BBOX = "49.14,-123.30,49.32,-123.02"
 QUERY = """
 [out:json][timeout:60];
-area["name"="Vancouver"]["boundary"="administrative"]->.searchArea;
 (
-  node["amenity"~"cafe|restaurant|fast_food|food_court"](area.searchArea);
-  way["amenity"~"cafe|restaurant|fast_food|food_court"](area.searchArea);
-  relation["amenity"~"cafe|restaurant|fast_food|food_court"](area.searchArea);
+  node["amenity"~"cafe|restaurant|fast_food|food_court"]({bbox});
+  way["amenity"~"cafe|restaurant|fast_food|food_court"]({bbox});
+  relation["amenity"~"cafe|restaurant|fast_food|food_court"]({bbox});
 );
 out center tags;
-"""
+""".format(bbox=VANCOUVER_BBOX)
 
 
 def _address_from_tags(tags: dict[str, Any]) -> str:
@@ -28,7 +29,12 @@ def _address_from_tags(tags: dict[str, Any]) -> str:
 
 def collect_osm_food_places(url: str = OVERPASS_URL) -> pd.DataFrame:
     ensure_dirs()
-    response = requests.post(url, data={"data": QUERY}, timeout=90)
+    response = requests.post(
+        url,
+        data={"data": QUERY},
+        timeout=90,
+        headers={"User-Agent": "CafeCompass Vancouver portfolio project"},
+    )
     response.raise_for_status()
     elements = response.json().get("elements", [])
     rows = []
@@ -71,4 +77,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
