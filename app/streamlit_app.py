@@ -601,26 +601,58 @@ def similar_places_page(df: pd.DataFrame, source: str) -> None:
             )
 
 
-def intelligence_page(df: pd.DataFrame, source: str) -> None:
-    st.title("Review Intelligence")
+def data_coverage_page(df: pd.DataFrame, source: str) -> None:
+    st.title("Data Coverage")
     source_banner(source)
     if df.empty:
         setup_message()
         return
-    cols = st.columns(4)
-    highlights = [
-        ("Quiet study hotspots", "quiet_study_score"),
-        ("Cheap eats hotspots", "cheap_value_score"),
-        ("Hidden gem candidates", "hidden_gem_adjusted_score"),
-        ("Date-night clusters", "date_night_score"),
-    ]
-    for col, (title, score_col) in zip(cols, highlights):
-        with col:
-            st.subheader(title)
-            if score_col in df:
-                st.dataframe(df.sort_values(score_col, ascending=False)[["name", score_col]].head(8), hide_index=True)
-            else:
-                st.caption("Not available yet.")
+    st.write(
+        "This page shows what data the project currently has. Right now, the real dataset is strongest for "
+        "place coverage from OpenStreetMap and City of Vancouver metadata. Review intelligence will become useful "
+        "after review/community text is linked to these places."
+    )
+
+    rating_values = pd.to_numeric(df.get("stars", pd.Series(dtype=float)), errors="coerce")
+    confidence_values = pd.to_numeric(df.get("confidence_score", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
+    metric_cols = st.columns(4)
+    metric_cols[0].metric("Places", f"{len(df):,}")
+    metric_cols[1].metric("Cuisines", df["cuisine"].nunique() if "cuisine" in df else 0)
+    metric_cols[2].metric("Ratings linked", int(rating_values.notna().sum()))
+    metric_cols[3].metric("Text evidence linked", int((confidence_values > 0).sum()))
+
+    if int((confidence_values > 0).sum()) == 0:
+        st.info(
+            "No review-text evidence is linked yet, so quiet-study, hidden-gem, date-night, and similar review intelligence "
+            "scores are intentionally hidden for now."
+        )
+
+    left, right = st.columns(2)
+    with left:
+        st.subheader("Top cuisines by place count")
+        cuisine_counts = (
+            df["cuisine"].fillna("Unknown").astype(str).str.replace("_", " ").value_counts().head(15).reset_index()
+            if "cuisine" in df
+            else pd.DataFrame(columns=["cuisine", "count"])
+        )
+        cuisine_counts.columns = ["Cuisine", "Places"]
+        st.dataframe(cuisine_counts, use_container_width=True, hide_index=True)
+    with right:
+        st.subheader("Top place types")
+        category_counts = (
+            df["categories"].fillna("Unknown").astype(str).str.replace("_", " ").value_counts().head(15).reset_index()
+            if "categories" in df
+            else pd.DataFrame(columns=["categories", "count"])
+        )
+        category_counts.columns = ["Place type", "Places"]
+        st.dataframe(category_counts, use_container_width=True, hide_index=True)
+
+    with st.expander("What is missing before review intelligence works?"):
+        st.write(
+            "The project still needs Yelp Open Dataset review files and/or Reddit API text linked to the OSM/City place table. "
+            "After that, the NLP pipeline can extract aspect scores for quiet study, date night, cheap value, hidden gems, "
+            "authentic food, service speed, group-friendly, dessert/drinks, and late-night food."
+        )
 
 
 def evaluation_page() -> None:
@@ -644,7 +676,7 @@ def main() -> None:
             "Explore Vancouver Food Map",
             "Cafe/Food Spot Recommender",
             "Similar Places",
-            "Review Intelligence",
+            "Data Coverage",
             "Model Evaluation",
         ],
     )
@@ -656,8 +688,8 @@ def main() -> None:
         recommender_page(df, source)
     elif page == "Similar Places":
         similar_places_page(df, source)
-    elif page == "Review Intelligence":
-        intelligence_page(df, source)
+    elif page == "Data Coverage":
+        data_coverage_page(df, source)
     else:
         evaluation_page()
 
