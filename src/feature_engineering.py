@@ -36,12 +36,33 @@ def build_recommender_features() -> pd.DataFrame:
     if "place_id" not in profile.columns:
         profile["place_id"] = pd.Series(dtype=str)
     df = master.merge(profile, on="place_id", how="left")
+    if "name" in df:
+        df = df.dropna(subset=["name"])
+    if {"latitude", "longitude"}.issubset(df.columns):
+        df = df.dropna(subset=["latitude", "longitude"])
+    if df.empty:
+        out = pd.DataFrame(columns=[
+            "place_id", "name", "latitude", "longitude", "categories", "cuisine", "stars", "review_count", "is_open",
+            *[f"{a}_score" for a in ASPECTS], "confidence_score", "popularity_score",
+            "hidden_gem_adjusted_score", "place_embedding_available", "evidence_snippets_json",
+        ])
+        out.to_csv(PROCESSED_DIR / "recommender_features.csv", index=False)
+        print("Saved recommender features for 0 places.")
+        return out
     for aspect in ASPECTS:
         col = f"{aspect}_score"
         if col not in df:
             df[col] = 0.0
         df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0.0)
     df["confidence_score"] = pd.to_numeric(df.get("confidence_score", 0), errors="coerce").fillna(0)
+    if "stars" not in df:
+        df["stars"] = np.nan
+    if "review_count" not in df:
+        df["review_count"] = 0
+    if "is_open" not in df:
+        df["is_open"] = np.nan
+    if "evidence_snippets_json" not in df:
+        df["evidence_snippets_json"] = "{}"
     df["popularity_score"] = 0.6 * _norm(df.get("stars", 0)) + 0.4 * _norm(np.log1p(pd.to_numeric(df.get("review_count", 0), errors="coerce").fillna(0)))
     df["hidden_gem_adjusted_score"] = df["hidden_gem_score"] * df["confidence_score"] * (1 - (df["popularity_score"] * 0.5))
     index_path = MODELS_DIR / "place_embedding_index.csv"

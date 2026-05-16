@@ -49,10 +49,18 @@ def page_frame() -> None:
         .stApp p, .stApp li, .stApp label, .stApp span, .stApp div { color: #20201d; }
         section[data-testid="stSidebar"] { background: #24231f; }
         section[data-testid="stSidebar"] * { color: #f7f4ee; }
+        section[data-testid="stSidebar"] p,
+        section[data-testid="stSidebar"] li,
+        section[data-testid="stSidebar"] label,
+        section[data-testid="stSidebar"] span,
+        section[data-testid="stSidebar"] div { color: #f7f4ee; }
         div[data-testid="stAlert"] * { color: #20201d; }
+        [data-baseweb="popover"] * { color: #20201d; }
         h1, h2, h3 { letter-spacing: 0; }
         div[data-testid="stMetric"] { background: #fffaf0; border: 1px solid #d7c8aa; padding: 14px; border-radius: 8px; }
         .cc-note { border-left: 4px solid #0b6b5a; padding: 10px 14px; background: #fffaf0; }
+        .dark-note { background: #24231f; color: #f7f4ee; padding: 12px 14px; border-radius: 8px; }
+        .dark-note * { color: #f7f4ee; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -93,8 +101,8 @@ def setup_message() -> None:
 def source_banner(source: str) -> None:
     if source == "sample":
         st.warning(
-            "Showing the committed synthetic demo dataset. Run `python src/make_demo_data.py` for local demo outputs, "
-            "or rebuild the pipeline from permitted real data sources for the full project."
+            "Currently showing the synthetic demo dataset. The actual Vancouver dataset will be added by running "
+            "the OSM, Vancouver Open Data, Yelp Open Dataset, and optional Reddit collection pipeline."
         )
 
 
@@ -212,7 +220,8 @@ def map_page(df: pd.DataFrame, source: str) -> None:
         fig.update_layout(mapbox_style="open-street-map", margin={"r": 0, "t": 0, "l": 0, "b": 0})
         st.plotly_chart(fig, use_container_width=True)
         table_cols = [c for c in ["name", "cuisine", "categories", "stars", "review_count", "confidence_score"] if c in view.columns]
-        st.dataframe(view[table_cols].sort_values(["cuisine", "name"]), use_container_width=True, hide_index=True)
+        with st.expander("Show place data used for this map"):
+            st.dataframe(view[table_cols].sort_values(["cuisine", "name"]), use_container_width=True, hide_index=True)
 
 
 def recommender_page(df: pd.DataFrame, source: str) -> None:
