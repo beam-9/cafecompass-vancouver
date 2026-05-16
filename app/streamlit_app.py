@@ -276,6 +276,12 @@ def _metadata_tokens(row: pd.Series) -> set[str]:
     return {token for token in re.split(r"[^a-z0-9_]+", text.lower()) if len(token) > 1}
 
 
+def _normalized_place_name(value: object) -> str:
+    text = re.sub(r"[^a-z0-9\s]", " ", str(value or "").lower())
+    text = re.sub(r"\b(cafe|restaurant|restaurants|coffee|house|inc|ltd|limited)\b", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def _simple_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     if any(pd.isna(v) for v in [lat1, lon1, lat2, lon2]):
         return float("inf")
@@ -323,8 +329,17 @@ def similar_places(df: pd.DataFrame, selected: pd.Series) -> pd.DataFrame:
             basis.append(", ".join(reasons) or "metadata fallback")
         out["similarity"] = scores
         out["similarity_basis"] = basis
-    out = out[out["place_id"] != selected.get("place_id")] if "place_id" in out.columns else out[out["name"] != selected.get("name")]
-    return out.sort_values(["similarity", "name"], ascending=[False, True])
+    selected_name = _normalized_place_name(selected.get("name"))
+    if "place_id" in out.columns:
+        out = out[out["place_id"] != selected.get("place_id")]
+    else:
+        out = out[out["name"] != selected.get("name")]
+    if selected_name:
+        out = out[out["name"].map(_normalized_place_name) != selected_name]
+    out["normalized_result_name"] = out["name"].map(_normalized_place_name)
+    out = out.sort_values(["similarity", "name"], ascending=[False, True])
+    out = out.drop_duplicates(subset=["normalized_result_name"], keep="first")
+    return out.drop(columns=["normalized_result_name"], errors="ignore")
 
 
 def overview_page(source: str) -> None:
