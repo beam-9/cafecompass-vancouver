@@ -32,6 +32,19 @@ EXPERIENCE_PRESETS = {
     "late-night food": {"late_night": 1.0, "service_speed": 0.3},
 }
 
+PREFERENCE_KEYWORDS = {
+    "quiet_study": ["quiet", "study", "studying", "laptop", "outlet", "outlets", "wifi", "wi-fi", "work", "working"],
+    "date_night": ["date", "romantic", "cozy", "intimate", "ambience", "ambiance", "wine", "cocktail"],
+    "cheap_value": ["cheap", "affordable", "value", "budget", "student", "inexpensive", "reasonable"],
+    "hidden_gem": ["hidden gem", "underrated", "local favorite", "hole in the wall", "tucked away"],
+    "authentic": ["authentic", "traditional", "homemade", "family-run", "legit"],
+    "service_speed": ["quick", "fast", "lunch", "service", "line", "queue"],
+    "group_friendly": ["group", "groups", "large table", "big table", "reservation", "friends", "family"],
+    "food_quality": ["delicious", "tasty", "fresh", "flavourful", "flavorful", "good food"],
+    "dessert_drinks": ["dessert", "matcha", "coffee", "latte", "tea", "bubble tea", "cake", "pastry", "croissant"],
+    "late_night": ["late night", "open late", "midnight", "24 hour", "after hours"],
+}
+
 
 @dataclass
 class RecommenderConfig:
@@ -66,6 +79,8 @@ def preference_vector(experience: str | dict[str, float]) -> dict[str, float]:
     for aspect in ASPECTS:
         if aspect.replace("_", " ") in lowered:
             vector[aspect] = 1.0
+        elif any(keyword in lowered for keyword in PREFERENCE_KEYWORDS.get(aspect, [])):
+            vector[aspect] = max(vector[aspect], 1.0)
     return vector
 
 

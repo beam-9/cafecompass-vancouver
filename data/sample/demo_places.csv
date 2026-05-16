@@ -1,0 +1,14 @@
+place_id,name,latitude,longitude,categories,cuisine,stars,review_count,is_open
+pl_demo_001,Harbour Quiet Coffee,49.2631,-123.2492,Cafes; Coffee & Tea,Coffee,4.5,184,1
+pl_demo_002,Kits Date Table,49.2688,-123.1665,Restaurants; Wine Bars,Italian,4.4,221,1
+pl_demo_003,Mount Pleasant Noodles,49.2635,-123.1003,Restaurants; Cheap Eats,Vietnamese,4.6,143,1
+pl_demo_004,Late Lantern Eats,49.2794,-123.1187,Restaurants; Late Night,Korean,4.1,310,1
+pl_demo_005,Matcha Alley,49.2824,-123.1194,Cafes; Desserts,Japanese,4.3,168,1
+pl_demo_006,Richmond Family Dumplings,49.1702,-123.1341,Restaurants; Chinese,Chinese,4.7,420,1
+pl_demo_007,Campus Plug Cafe,49.2607,-123.2449,Cafes; Coffee & Tea,Coffee,4.2,96,1
+pl_demo_008,Granville Quick Lunch,49.2815,-123.1215,Fast Food; Food,Canadian,4.0,264,1
+pl_demo_009,Hidden Ramen Counter,49.2505,-123.1012,Restaurants; Ramen,Japanese,4.8,82,1
+pl_demo_010,Big Table Social,49.2667,-123.1067,Restaurants; Group Dining,Middle Eastern,4.3,190,1
+pl_demo_011,Cozy Rain Bakery,49.2762,-123.0695,Bakeries; Desserts,French,4.5,132,1
+pl_demo_012,Student Bowl House,49.2677,-123.2522,Restaurants; Food,Korean,4.1,72,1
+

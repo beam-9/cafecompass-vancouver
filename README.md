@@ -81,7 +81,7 @@ Because this project may not have real user feedback, I use several practical ev
 
 ## Streamlit demo
 
-The Streamlit app is designed as an interactive portfolio demo with pages for project overview, map exploration, recommendations, similar places, review intelligence, and model evaluation. The app is built to show clear setup messages when processed data has not been generated yet.
+The Streamlit app is designed as an interactive portfolio demo with pages for project overview, map exploration, recommendations, similar places, review intelligence, and model evaluation. A small synthetic demo dataset is included in `data/sample/` so the dashboard can show the intended recommender behavior before I download large external datasets.
 
 ## Key insights
 
@@ -127,6 +127,18 @@ data/raw/yelp/checkin.json
 ```
 
 Run the pipeline modules as needed:
+
+```bash
+python src/run_pipeline.py --demo
+```
+
+That command builds local ignored files in `data/processed/` from the committed sample dataset. For the Yelp Open Dataset path, place the JSONL files under `data/raw/yelp/` and run:
+
+```bash
+python src/run_pipeline.py --yelp
+```
+
+Individual stages can also be run directly:
 
 ```bash
 python src/load_yelp_data.py

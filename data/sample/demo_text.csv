@@ -1,0 +1,25 @@
+source,source_id,place_id,business_id,text,text_date
+demo,txt_001,pl_demo_001,,"Quiet place to study with calm music, lots of seating, good coffee, and outlets near most tables.",2025-01-12
+demo,txt_002,pl_demo_001,,"I brought my laptop and worked for two hours without feeling rushed. The wifi was steady and it was not crowded in the afternoon.",2025-02-04
+demo,txt_003,pl_demo_002,,"Cute cozy date spot with warm lighting, good wine, and a romantic little room in the back.",2025-01-20
+demo,txt_004,pl_demo_002,,"The service was attentive and the pasta tasted fresh. It feels more like a special occasion place than a quick lunch.",2025-02-15
+demo,txt_005,pl_demo_003,,"Affordable bowls with big portions. It is filling, tasty, and worth it for students on a budget.",2025-01-08
+demo,txt_006,pl_demo_003,,"The line moves fast and the broth is delicious. A great quick lunch if you are in Mount Pleasant.",2025-03-10
+demo,txt_007,pl_demo_004,,"Open late after midnight with quick service. It gets loud, but the spicy chicken is fresh and satisfying.",2025-03-02
+demo,txt_008,pl_demo_004,,"Good late night food when everything else is closed. Staff were friendly even with a long queue.",2025-03-18
+demo,txt_009,pl_demo_005,,"Excellent matcha latte, soft cake, and delicate pastries. A sweet dessert stop for cafe hopping downtown.",2025-01-25
+demo,txt_010,pl_demo_005,,"Cute vibe and rich matcha flavour. Seating is limited, so it is better for drinks than studying.",2025-02-11
+demo,txt_011,pl_demo_006,,"Family-run dumpling place with traditional flavours. The noodles remind me of homemade food and the portions are generous.",2025-02-26
+demo,txt_012,pl_demo_006,,"Authentic, legit, and great for family sharing. Large tables make it easy for groups.",2025-03-08
+demo,txt_013,pl_demo_007,,"Campus cafe with plugs, wifi, laptop seating, and students studying quietly between classes.",2025-01-29
+demo,txt_014,pl_demo_007,,"Good coffee near UBC, but it can get crowded after lectures. Morning is peaceful for work.",2025-02-19
+demo,txt_015,pl_demo_008,,"Fast counter service and reasonable lunch combos. Useful when you need a quick filling meal downtown.",2025-01-30
+demo,txt_016,pl_demo_008,,"Not fancy, but the staff are friendly and the portions are worth the price.",2025-02-22
+demo,txt_017,pl_demo_009,,"Tiny hidden gem ramen counter tucked away off the main street. The broth is rich and the place feels underrated.",2025-03-03
+demo,txt_018,pl_demo_009,,"Small local favorite with legit noodles. Not crowded, but there are only a few seats.",2025-03-21
+demo,txt_019,pl_demo_010,,"Great for groups because they have big tables, reservations, and sharing plates for friends.",2025-02-02
+demo,txt_020,pl_demo_010,,"Service can be slow on weekends, but it is spacious and easy for a family dinner.",2025-02-27
+demo,txt_021,pl_demo_011,,"Fresh croissants, sweet pastries, and calm seating by the window. It is cozy but not a full laptop cafe.",2025-01-16
+demo,txt_022,pl_demo_011,,"Dessert is delicious and the coffee is good. The bakery feels peaceful on rainy mornings.",2025-03-12
+demo,txt_023,pl_demo_012,,"Cheap student bowls near campus with generous portions. It is quick, filling, and budget friendly.",2025-02-06
+demo,txt_024,pl_demo_012,,"Good value Korean food near UBC. The room is casual and works well for a fast lunch.",2025-03-17

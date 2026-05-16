@@ -58,15 +58,27 @@ def page_frame() -> None:
 
 
 @st.cache_data
-def load_features() -> pd.DataFrame:
+def load_features() -> tuple[pd.DataFrame, str]:
     path = PROCESSED_DIR / "recommender_features.csv"
-    return pd.read_csv(path) if path.exists() else pd.DataFrame()
+    if path.exists():
+        df = pd.read_csv(path)
+        if not df.empty:
+            return df, "processed"
+    sample_path = ROOT / "data" / "sample" / "demo_recommender_features.csv"
+    if sample_path.exists():
+        return pd.read_csv(sample_path), "sample"
+    return pd.DataFrame(), "missing"
 
 
 @st.cache_data
 def load_evaluation() -> pd.DataFrame:
     path = PROCESSED_DIR / "evaluation_results.csv"
-    return pd.read_csv(path) if path.exists() else pd.DataFrame()
+    if path.exists():
+        df = pd.read_csv(path)
+        if not df.empty:
+            return df
+    sample_path = ROOT / "data" / "sample" / "demo_evaluation_results.csv"
+    return pd.read_csv(sample_path) if sample_path.exists() else pd.DataFrame()
 
 
 def setup_message() -> None:
@@ -76,7 +88,15 @@ def setup_message() -> None:
     )
 
 
-def overview_page() -> None:
+def source_banner(source: str) -> None:
+    if source == "sample":
+        st.warning(
+            "Showing the committed synthetic demo dataset. Run `python src/make_demo_data.py` for local demo outputs, "
+            "or rebuild the pipeline from permitted real data sources for the full project."
+        )
+
+
+def overview_page(source: str) -> None:
     st.title("CafeCompass Vancouver")
     st.subheader("Review-aware cafe and food spot recommendations")
     st.markdown(
@@ -98,10 +118,12 @@ def overview_page() -> None:
         "The app is a portfolio recommender prototype, not a production replacement for live local search. "
         "Its recommendations depend on available text, metadata freshness, and entity matching quality."
     )
+    source_banner(source)
 
 
-def map_page(df: pd.DataFrame) -> None:
+def map_page(df: pd.DataFrame, source: str) -> None:
     st.title("Explore Vancouver Food Map")
+    source_banner(source)
     if df.empty:
         setup_message()
         return
@@ -129,8 +151,9 @@ def map_page(df: pd.DataFrame) -> None:
         st.plotly_chart(fig, use_container_width=True)
 
 
-def recommender_page(df: pd.DataFrame) -> None:
+def recommender_page(df: pd.DataFrame, source: str) -> None:
     st.title("Cafe/Food Spot Recommender")
+    source_banner(source)
     if df.empty:
         setup_message()
         return
@@ -175,8 +198,9 @@ def recommender_page(df: pd.DataFrame) -> None:
                     st.json(explanation["score_breakdown"])
 
 
-def similar_places_page(df: pd.DataFrame) -> None:
+def similar_places_page(df: pd.DataFrame, source: str) -> None:
     st.title("Similar Places")
+    source_banner(source)
     if df.empty:
         setup_message()
         return
@@ -193,8 +217,9 @@ def similar_places_page(df: pd.DataFrame) -> None:
     st.dataframe(out[out["name"] != place][["name", "categories", "cuisine", "similarity"]].head(10), use_container_width=True)
 
 
-def intelligence_page(df: pd.DataFrame) -> None:
+def intelligence_page(df: pd.DataFrame, source: str) -> None:
     st.title("Review Intelligence")
+    source_banner(source)
     if df.empty:
         setup_message()
         return
@@ -227,7 +252,7 @@ def evaluation_page() -> None:
 
 def main() -> None:
     page_frame()
-    df = load_features()
+    df, source = load_features()
     page = st.sidebar.radio(
         "CafeCompass",
         [
@@ -240,15 +265,15 @@ def main() -> None:
         ],
     )
     if page == "Project Overview":
-        overview_page()
+        overview_page(source)
     elif page == "Explore Vancouver Food Map":
-        map_page(df)
+        map_page(df, source)
     elif page == "Cafe/Food Spot Recommender":
-        recommender_page(df)
+        recommender_page(df, source)
     elif page == "Similar Places":
-        similar_places_page(df)
+        similar_places_page(df, source)
     elif page == "Review Intelligence":
-        intelligence_page(df)
+        intelligence_page(df, source)
     else:
         evaluation_page()
 
