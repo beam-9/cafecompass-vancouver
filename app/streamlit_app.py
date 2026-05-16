@@ -46,8 +46,10 @@ def page_frame() -> None:
         """
         <style>
         .stApp { background: #f7f4ee; color: #20201d; }
+        .stApp p, .stApp li, .stApp label, .stApp span, .stApp div { color: #20201d; }
         section[data-testid="stSidebar"] { background: #24231f; }
         section[data-testid="stSidebar"] * { color: #f7f4ee; }
+        div[data-testid="stAlert"] * { color: #20201d; }
         h1, h2, h3 { letter-spacing: 0; }
         div[data-testid="stMetric"] { background: #fffaf0; border: 1px solid #d7c8aa; padding: 14px; border-radius: 8px; }
         .cc-note { border-left: 4px solid #0b6b5a; padding: 10px 14px; background: #fffaf0; }
@@ -137,28 +139,80 @@ def map_page(df: pd.DataFrame, source: str) -> None:
     if df.empty:
         setup_message()
         return
+
+    st.write(
+        "Use this page to inspect place coverage before trusting the recommender. "
+        "Filter by cuisine, category, name, rating, and the experience signal extracted from text."
+    )
+
     left, right = st.columns([1, 3])
     with left:
-        category = st.text_input("Category or cuisine filter")
-        min_conf = st.slider("Minimum confidence", 0.0, 1.0, 0.0, 0.05)
+        search = st.text_input("Search name, cuisine, or category", placeholder="Japanese, Chinese, ramen, cafe")
+        cuisine_options = sorted([c for c in df.get("cuisine", pd.Series(dtype=str)).dropna().astype(str).unique() if c])
+        cuisine_filter = st.multiselect("Cuisine", cuisine_options)
+        category_text = df.get("categories", pd.Series(dtype=str)).fillna("").astype(str)
+        category_options = sorted({item.strip() for value in category_text for item in value.split(";") if item.strip()})
+        category_filter = st.multiselect("Category", category_options)
+        min_rating = st.slider("Minimum rating", 0.0, 5.0, 0.0, 0.1)
+        aspect_label = st.selectbox(
+            "Color map by experience signal",
+            ["None", "Quiet study", "Cheap value", "Date night", "Hidden gem", "Authentic", "Group friendly", "Dessert/drinks", "Late night"],
+        )
+        st.caption(
+            "Text evidence is not a rating. It estimates how much review/community text supports an experience signal."
+        )
     view = df.copy()
-    if category:
-        mask = view.get("categories", "").fillna("").str.contains(category, case=False) | view.get("cuisine", "").fillna("").str.contains(category, case=False)
+    if search:
+        mask = pd.Series(False, index=view.index)
+        for col in ["name", "categories", "cuisine"]:
+            if col in view:
+                mask = mask | view[col].fillna("").astype(str).str.contains(search, case=False, regex=False)
         view = view[mask]
-    if "confidence_score" in view:
-        view = view[view["confidence_score"].fillna(0) >= min_conf]
+    if cuisine_filter and "cuisine" in view:
+        view = view[view["cuisine"].isin(cuisine_filter)]
+    if category_filter and "categories" in view:
+        category_pattern = "|".join(category_filter)
+        view = view[view["categories"].fillna("").str.contains(category_pattern, case=False, regex=True)]
+    if "stars" in view:
+        view = view[pd.to_numeric(view["stars"], errors="coerce").fillna(0) >= min_rating]
+
+    aspect_map = {
+        "Quiet study": "quiet_study_score",
+        "Cheap value": "cheap_value_score",
+        "Date night": "date_night_score",
+        "Hidden gem": "hidden_gem_adjusted_score",
+        "Authentic": "authentic_score",
+        "Group friendly": "group_friendly_score",
+        "Dessert/drinks": "dessert_drinks_score",
+        "Late night": "late_night_score",
+    }
+    color_col = aspect_map.get(aspect_label)
+
     with right:
+        metric_cols = st.columns(4)
+        metric_cols[0].metric("Places shown", len(view))
+        metric_cols[1].metric("Cuisines", view["cuisine"].nunique() if "cuisine" in view else 0)
+        metric_cols[2].metric("Avg rating", f"{view['stars'].mean():.2f}" if "stars" in view and not view.empty else "N/A")
+        evidence = view.get("confidence_score", pd.Series(0, index=view.index)).fillna(0)
+        metric_cols[3].metric("With text evidence", int((evidence > 0).sum()))
+        if view.empty:
+            st.warning("No places match these filters. Clear the search or lower the rating filter.")
+            return
         fig = px.scatter_mapbox(
             view,
             lat="latitude",
             lon="longitude",
             hover_name="name",
-            color="categories" if "categories" in view else None,
+            hover_data=[c for c in ["cuisine", "categories", "stars", "review_count"] if c in view.columns],
+            color=color_col if color_col in view.columns else "cuisine",
             zoom=11,
             height=640,
+            color_continuous_scale="Tealgrn" if color_col in view.columns else None,
         )
         fig.update_layout(mapbox_style="open-street-map", margin={"r": 0, "t": 0, "l": 0, "b": 0})
         st.plotly_chart(fig, use_container_width=True)
+        table_cols = [c for c in ["name", "cuisine", "categories", "stars", "review_count", "confidence_score"] if c in view.columns]
+        st.dataframe(view[table_cols].sort_values(["cuisine", "name"]), use_container_width=True, hide_index=True)
 
 
 def recommender_page(df: pd.DataFrame, source: str) -> None:
