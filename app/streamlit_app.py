@@ -189,6 +189,7 @@ def _fmt_missing(value: object, fallback: str = "Not available") -> str:
 def _score_rows(breakdown: dict[str, float]) -> str:
     labels = {
         "aspect_match_score": "Experience match",
+        "metadata_match_score": "Cuisine/type match",
         "semantic_similarity_score": "Text similarity",
         "distance_score": "Distance fit",
         "rating_score": "Rating/popularity",
@@ -199,11 +200,10 @@ def _score_rows(breakdown: dict[str, float]) -> str:
     rows = []
     for key, label in labels.items():
         raw = float(breakdown.get(key, 0) or 0)
+        if raw <= 0:
+            continue
         pct = max(0, min(100, raw * 100))
         value = f"{pct:.0f}%"
-        unavailable = raw == 0 and key in {"semantic_similarity_score", "rating_score", "confidence_score", "hidden_gem_score"}
-        if unavailable:
-            value = "N/A"
         rows.append(
             f"""
             <div class="score-row">
@@ -213,6 +213,8 @@ def _score_rows(breakdown: dict[str, float]) -> str:
             </div>
             """
         )
+    if not rows:
+        return "<div style='font-size:0.88rem;'>No active ranking signals are available for this place yet.</div>"
     return "\n".join(rows)
 
 
@@ -418,6 +420,9 @@ def recommender_page(df: pd.DataFrame, source: str) -> None:
         cuisine = st.text_input("Cuisine filter")
         max_distance = st.slider("Max distance (km)", 1.0, 25.0, 8.0, 0.5)
         st.markdown("<div class='slider-panel'><strong>Ranking weights</strong><br><span>Adjust how much each signal affects the order.</span></div>", unsafe_allow_html=True)
+        ratings_available = "stars" in df and pd.to_numeric(df["stars"], errors="coerce").notna().any()
+        text_available = "confidence_score" in df and (pd.to_numeric(df["confidence_score"], errors="coerce").fillna(0) > 0).any()
+        embeddings_available = "place_embedding_available" in df and df["place_embedding_available"].fillna(False).astype(bool).any()
         weight_labels = {
             "aspect_match_score": "Experience match",
             "semantic_similarity_score": "Text similarity",
@@ -429,7 +434,14 @@ def recommender_page(df: pd.DataFrame, source: str) -> None:
         }
         weights = {}
         for key, default in DEFAULT_WEIGHTS.items():
-            weights[key] = st.slider(weight_labels.get(key, key), 0.0, 1.0, float(default), 0.05)
+            disabled = (
+                (key in {"aspect_match_score", "confidence_score", "hidden_gem_score"} and not text_available)
+                or (key == "semantic_similarity_score" and not embeddings_available)
+                or (key == "rating_score" and not ratings_available)
+            )
+            weights[key] = st.slider(weight_labels.get(key, key), 0.0, 1.0, 0.0 if disabled else float(default), 0.05, disabled=disabled)
+        if not text_available or not ratings_available:
+            st.caption("Disabled sliders need review text, embeddings, or ratings that are not linked to the current OSM/City metadata yet.")
 
     config = RecommenderConfig(start_lat=lat, start_lon=lon, max_distance_km=max_distance, weights=weights)
     results = hybrid_recommender(df, experience, config, query_text=query, cuisine_filter=cuisine or None, top_k=10)
@@ -441,10 +453,16 @@ def recommender_page(df: pd.DataFrame, source: str) -> None:
         st.metric("Recommendations", len(results))
         if (pd.to_numeric(results.get("confidence_score", pd.Series(0, index=results.index)), errors="coerce").fillna(0) == 0).all():
             st.info(
-                "These recommendations are currently based mostly on distance, cuisine/category metadata, and your filters. "
+                "These recommendations are currently ranked by distance plus cuisine/category/name matches from OSM and City metadata. "
                 "Review-text evidence will appear after Yelp Open Dataset or Reddit text is linked to places."
             )
-        for _, row in results.iterrows():
+        visible_count = 4
+        if len(results) > visible_count:
+            show_all = st.toggle(f"See all {len(results)} recommendations", value=False)
+            display_results = results if show_all else results.head(visible_count)
+        else:
+            display_results = results
+        for _, row in display_results.iterrows():
             render_recommendation_card(row)
 
 

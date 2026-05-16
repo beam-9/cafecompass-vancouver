@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -45,6 +46,19 @@ PREFERENCE_KEYWORDS = {
     "late_night": ["late night", "open late", "midnight", "24 hour", "after hours"],
 }
 
+METADATA_INTENT_TERMS = {
+    "quiet study cafe": ["cafe", "coffee", "coffee_shop", "tea", "library"],
+    "laptop-friendly cafe": ["cafe", "coffee", "coffee_shop", "tea"],
+    "cheap eats": ["fast_food", "food", "cheap", "lunch", "sandwich", "burger", "pizza", "noodle", "bento"],
+    "date-night restaurant": ["restaurant", "wine", "bar", "italian", "sushi", "izakaya", "seafood"],
+    "hidden gem": ["restaurant", "cafe", "food_court", "ramen", "noodle", "bakery"],
+    "authentic food": ["restaurant", "chinese", "japanese", "korean", "vietnamese", "thai", "indian", "mexican"],
+    "group-friendly restaurant": ["restaurant", "hot_pot", "bbq", "family", "food_court", "group"],
+    "quick lunch": ["fast_food", "sandwich", "burger", "pizza", "bento", "lunch", "food_court"],
+    "dessert/matcha/cafe hopping": ["dessert", "matcha", "bubble_tea", "ice_cream", "bakery", "cafe", "coffee_shop", "tea"],
+    "late-night food": ["fast_food", "restaurant", "bar", "pizza", "burger", "kebab"],
+}
+
 
 @dataclass
 class RecommenderConfig:
@@ -82,6 +96,34 @@ def preference_vector(experience: str | dict[str, float]) -> dict[str, float]:
         elif any(keyword in lowered for keyword in PREFERENCE_KEYWORDS.get(aspect, [])):
             vector[aspect] = max(vector[aspect], 1.0)
     return vector
+
+
+def _tokenize(text: object) -> set[str]:
+    return {token for token in re.split(r"[^a-z0-9_]+", str(text or "").lower()) if len(token) > 1}
+
+
+def metadata_match_scores(out: pd.DataFrame, experience: str | dict[str, float], query_text: str | None = None) -> pd.Series:
+    if out.empty:
+        return pd.Series(dtype=float)
+    query = query_text or ("" if isinstance(experience, dict) else str(experience))
+    lowered = query.lower()
+    desired_terms = set(_tokenize(query))
+    if not isinstance(experience, dict):
+        for label, terms in METADATA_INTENT_TERMS.items():
+            label_parts = set(label.replace("/", " ").split())
+            if label in lowered or desired_terms.intersection(label_parts):
+                desired_terms.update(_tokenize(" ".join(terms)))
+    scores = []
+    for _, row in out.iterrows():
+        metadata = " ".join(str(row.get(col, "")) for col in ["name", "categories", "cuisine"])
+        place_terms = _tokenize(metadata)
+        if not desired_terms:
+            scores.append(0.0)
+            continue
+        overlap = len(desired_terms.intersection(place_terms))
+        partial = sum(1 for term in desired_terms if term and term in metadata.lower())
+        scores.append(min(1.0, (overlap + 0.5 * partial) / max(3, len(desired_terms))))
+    return pd.Series(scores, index=out.index)
 
 
 def _normalize(values: pd.Series) -> pd.Series:
@@ -163,8 +205,9 @@ def hybrid_recommender(
 
     out = aspect_based_recommender(out, experience, top_k=len(out))
     out["semantic_similarity_score"] = _semantic_scores(out, query_text or str(experience))
+    out["metadata_match_score"] = metadata_match_scores(out, experience, query_text)
     out["rating_score"] = 0.6 * _normalize(out.get("stars", 0)) + 0.4 * _normalize(np.log1p(pd.to_numeric(out.get("review_count", 0), errors="coerce").fillna(0)))
-    out["context_score"] = out["aspect_match_score"]
+    out["context_score"] = out[["aspect_match_score", "metadata_match_score"]].max(axis=1)
     out["hidden_gem_score"] = out.get("hidden_gem_adjusted_score", out.get("hidden_gem_score", 0)).fillna(0)
     out["confidence_score"] = out.get("confidence_score", 0).fillna(0)
 
@@ -174,6 +217,6 @@ def hybrid_recommender(
     for col, weight in weights.items():
         if col in out.columns:
             out["final_score"] += out[col].fillna(0) * (weight / weight_sum)
-    breakdown_cols = [c for c in DEFAULT_WEIGHTS if c in out.columns]
+    breakdown_cols = [c for c in [*DEFAULT_WEIGHTS, "metadata_match_score"] if c in out.columns]
     out["score_breakdown_json"] = out[breakdown_cols].apply(lambda r: json.dumps(r.to_dict()), axis=1)
     return out.sort_values("final_score", ascending=False).head(top_k)

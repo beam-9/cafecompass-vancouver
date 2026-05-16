@@ -12,7 +12,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from config import ASPECTS, UBC_CENTER
-from recommenders import RecommenderConfig, distance_baseline, hybrid_recommender, preference_vector
+from recommenders import RecommenderConfig, distance_baseline, hybrid_recommender, metadata_match_scores, preference_vector
 
 
 def demo_frame() -> pd.DataFrame:
@@ -69,7 +69,11 @@ class RecommenderTests(unittest.TestCase):
         result = hybrid_recommender(df, "quiet study cafe", config, top_k=2)
         self.assertEqual(result.iloc[0]["name"], "Study Cafe")
 
+    def test_metadata_match_uses_cuisine_and_categories(self) -> None:
+        df = demo_frame()
+        scores = metadata_match_scores(df, "date-night restaurant", "Italian date night restaurant")
+        self.assertGreater(scores.iloc[1], scores.iloc[0])
+
 
 if __name__ == "__main__":
     unittest.main()
-
