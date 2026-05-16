@@ -73,7 +73,7 @@ def page_frame() -> None:
 
 
 @st.cache_data
-def load_features() -> tuple[pd.DataFrame, str]:
+def load_features(data_version: float) -> tuple[pd.DataFrame, str]:
     path = PROCESSED_DIR / "recommender_features.csv"
     if path.exists():
         df = pd.read_csv(path)
@@ -86,7 +86,7 @@ def load_features() -> tuple[pd.DataFrame, str]:
 
 
 @st.cache_data
-def load_evaluation() -> pd.DataFrame:
+def load_evaluation(data_version: float) -> pd.DataFrame:
     path = PROCESSED_DIR / "evaluation_results.csv"
     if path.exists():
         df = pd.read_csv(path)
@@ -94,6 +94,12 @@ def load_evaluation() -> pd.DataFrame:
             return df
     sample_path = ROOT / "data" / "sample" / "demo_evaluation_results.csv"
     return pd.read_csv(sample_path) if sample_path.exists() else pd.DataFrame()
+
+
+def processed_data_version() -> float:
+    paths = [PROCESSED_DIR / "recommender_features.csv", PROCESSED_DIR / "evaluation_results.csv"]
+    existing = [path.stat().st_mtime for path in paths if path.exists()]
+    return max(existing, default=0.0)
 
 
 def setup_message() -> None:
@@ -319,7 +325,7 @@ def intelligence_page(df: pd.DataFrame, source: str) -> None:
 
 def evaluation_page() -> None:
     st.title("Model Evaluation")
-    results = load_evaluation()
+    results = load_evaluation(processed_data_version())
     if results.empty:
         st.info("Evaluation results are not available yet. Run `python src/evaluation.py` after building features.")
         return
@@ -330,7 +336,7 @@ def evaluation_page() -> None:
 
 def main() -> None:
     page_frame()
-    df, source = load_features()
+    df, source = load_features(processed_data_version())
     page = st.sidebar.radio(
         "CafeCompass",
         [
