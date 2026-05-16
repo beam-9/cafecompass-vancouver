@@ -572,9 +572,14 @@ def similar_places_page(df: pd.DataFrame, source: str) -> None:
         "Find places that are similar by cuisine, place type, name/category terms, and distance. "
         "Once review text is linked, this page can switch to review-aspect similarity."
     )
-    options = df["name"].fillna("Unnamed").astype(str).tolist()
+    option_df = df.copy()
+    option_df["display_name"] = option_df["name"].fillna("Unnamed").astype(str)
+    option_df["normalized_display_name"] = option_df["display_name"].map(_normalized_place_name)
+    option_df = option_df.sort_values(["display_name", "cuisine", "categories"], na_position="last")
+    option_df = option_df.drop_duplicates(subset=["normalized_display_name"], keep="first")
+    options = option_df["display_name"].tolist()
     place = st.selectbox("Select a place", options)
-    selected = df[df["name"].fillna("Unnamed").astype(str) == place].iloc[0]
+    selected = option_df[option_df["display_name"] == place].iloc[0]
     out = similar_places(df, selected).head(10)
     if out.empty:
         st.info("No similar places found for this selection.")
