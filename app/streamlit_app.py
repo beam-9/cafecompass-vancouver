@@ -102,9 +102,11 @@ def overview_page(source: str) -> None:
     st.markdown(
         """
         <div class="cc-note">
-        I built this project to answer experience-based questions that ratings alone do not capture:
-        quiet study spots, laptop-friendly cafes, hidden gems, cheap eats, date-night atmosphere,
-        and places where the actual review text supports the recommendation.
+        As an international student at UBC, I spent most of my first year studying in my dorm
+        and did not explore as much of Vancouver as I wanted to. I built CafeCompass Vancouver
+        to fix that problem in a data-driven way: instead of only asking what is highly rated nearby,
+        I wanted to find places that fit the kind of experience I actually need, like a quiet cafe
+        for studying, a cheap meal after class, a hidden gem, or somewhere worth taking friends.
         </div>
         """,
         unsafe_allow_html=True,
@@ -115,8 +117,16 @@ def overview_page(source: str) -> None:
         "City of Vancouver Open Data, and optional Foursquare OS Places."
     )
     st.write(
-        "The app is a portfolio recommender prototype, not a production replacement for live local search. "
-        "Its recommendations depend on available text, metadata freshness, and entity matching quality."
+        "Technically, this project combines NLP, geospatial filtering, fuzzy entity matching, sentiment scoring, "
+        "sentence embeddings, and hybrid recommendation ranking. The pipeline turns messy review or community text "
+        "into structured aspect signals such as quiet-study, cheap-value, date-night, hidden-gem, authentic-food, "
+        "group-friendly, dessert/drinks, and late-night intent."
+    )
+    st.write(
+        "The recommender compares several approaches: a distance-only baseline, a rating/popularity baseline, "
+        "an aspect-profile recommender, and a hybrid model that combines aspect match, semantic similarity, "
+        "distance, rating, confidence, context match, and hidden-gem adjustment. I also keep evidence snippets "
+        "from the original text so the app can explain why each place was recommended instead of returning a black-box list."
     )
     source_banner(source)
 
