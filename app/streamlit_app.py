@@ -457,13 +457,23 @@ def recommender_page(df: pd.DataFrame, source: str) -> None:
                 "Review-text evidence will appear after Yelp Open Dataset or Reddit text is linked to places."
             )
         visible_count = 4
-        if len(results) > visible_count:
-            show_all = st.toggle(f"See all {len(results)} recommendations", value=False)
-            display_results = results if show_all else results.head(visible_count)
-        else:
-            display_results = results
-        for _, row in display_results.iterrows():
+        show_more_key = "show_all_recommendations"
+        if show_more_key not in st.session_state:
+            st.session_state[show_more_key] = False
+        first_results = results.head(visible_count)
+        for _, row in first_results.iterrows():
             render_recommendation_card(row)
+        if len(results) > visible_count:
+            remaining = len(results) - visible_count
+            if st.session_state[show_more_key]:
+                for _, row in results.iloc[visible_count:].iterrows():
+                    render_recommendation_card(row)
+                if st.button("Show fewer recommendations"):
+                    st.session_state[show_more_key] = False
+                    st.rerun()
+            elif st.button(f"See {remaining} more recommendations"):
+                st.session_state[show_more_key] = True
+                st.rerun()
 
 
 def similar_places_page(df: pd.DataFrame, source: str) -> None:
