@@ -128,6 +128,19 @@ def page_frame() -> None:
             margin-right: 5px;
             margin-top: 4px;
         }
+        .stButton > button {
+            background: #ded8ca !important;
+            color: #20201d !important;
+            border: 1px solid #a89d88 !important;
+            border-radius: 8px !important;
+            font-weight: 700 !important;
+        }
+        .stButton > button * { color: #20201d !important; }
+        .stButton > button:hover {
+            background: #cfc6b5 !important;
+            color: #20201d !important;
+            border-color: #7e725e !important;
+        }
         .stSlider [data-baseweb="slider"] div { color: #20201d !important; }
         </style>
         """,
