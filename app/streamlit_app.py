@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import html
+import math
+import re
 import sys
 from pathlib import Path
 
@@ -269,6 +271,62 @@ def render_recommendation_card(row: pd.Series) -> None:
     )
 
 
+def _metadata_tokens(row: pd.Series) -> set[str]:
+    text = " ".join(str(row.get(col, "")) for col in ["name", "categories", "cuisine"])
+    return {token for token in re.split(r"[^a-z0-9_]+", text.lower()) if len(token) > 1}
+
+
+def _simple_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    if any(pd.isna(v) for v in [lat1, lon1, lat2, lon2]):
+        return float("inf")
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+    dlat, dlon = lat2 - lat1, lon2 - lon1
+    h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    return 6371.0 * 2 * math.atan2(math.sqrt(h), math.sqrt(1 - h))
+
+
+def similar_places(df: pd.DataFrame, selected: pd.Series) -> pd.DataFrame:
+    score_cols = [f"{a}_score" for a in ASPECTS if f"{a}_score" in df.columns]
+    has_aspects = bool(score_cols) and (df[score_cols].fillna(0).sum(axis=1) > 0).any()
+    out = df.copy()
+    if has_aspects:
+        matrix = out[score_cols].fillna(0).astype(float)
+        target = selected[score_cols].fillna(0).astype(float)
+        denom = (matrix.pow(2).sum(axis=1).pow(0.5) * (target.pow(2).sum() ** 0.5)) + 1e-9
+        out["similarity"] = matrix.dot(target) / denom
+        out["similarity_basis"] = "Review aspect profile"
+    else:
+        target_tokens = _metadata_tokens(selected)
+        selected_lat = selected.get("latitude")
+        selected_lon = selected.get("longitude")
+        scores = []
+        basis = []
+        for _, row in out.iterrows():
+            tokens = _metadata_tokens(row)
+            union = target_tokens.union(tokens)
+            token_score = len(target_tokens.intersection(tokens)) / len(union) if union else 0.0
+            same_cuisine = str(row.get("cuisine", "")).lower() == str(selected.get("cuisine", "")).lower()
+            same_category = str(row.get("categories", "")).lower() == str(selected.get("categories", "")).lower()
+            distance = _simple_distance_km(selected_lat, selected_lon, row.get("latitude"), row.get("longitude"))
+            distance_score = max(0.0, 1 - distance / 10)
+            score = 0.55 * token_score + 0.20 * float(same_cuisine) + 0.15 * float(same_category) + 0.10 * distance_score
+            scores.append(score)
+            reasons = []
+            if same_cuisine and pd.notna(row.get("cuisine")):
+                reasons.append("same cuisine")
+            if same_category and pd.notna(row.get("categories")):
+                reasons.append("same place type")
+            if token_score > 0:
+                reasons.append("similar name/category terms")
+            if distance_score > 0:
+                reasons.append("nearby")
+            basis.append(", ".join(reasons) or "metadata fallback")
+        out["similarity"] = scores
+        out["similarity_basis"] = basis
+    out = out[out["place_id"] != selected.get("place_id")] if "place_id" in out.columns else out[out["name"] != selected.get("name")]
+    return out.sort_values(["similarity", "name"], ascending=[False, True])
+
+
 def overview_page(source: str) -> None:
     st.title("CafeCompass Vancouver")
     st.subheader("Review-aware cafe and food spot recommendations")
@@ -495,17 +553,32 @@ def similar_places_page(df: pd.DataFrame, source: str) -> None:
     if df.empty:
         setup_message()
         return
-    place = st.selectbox("Select a place", df["name"].fillna("Unnamed").tolist())
-    selected = df[df["name"].fillna("Unnamed") == place].iloc[0]
-    score_cols = [f"{a}_score" for a in ASPECTS if f"{a}_score" in df.columns]
-    if not score_cols:
-        st.info("Aspect profiles are not available yet.")
+    st.write(
+        "Find places that are similar by cuisine, place type, name/category terms, and distance. "
+        "Once review text is linked, this page can switch to review-aspect similarity."
+    )
+    options = df["name"].fillna("Unnamed").astype(str).tolist()
+    place = st.selectbox("Select a place", options)
+    selected = df[df["name"].fillna("Unnamed").astype(str) == place].iloc[0]
+    out = similar_places(df, selected).head(10)
+    if out.empty:
+        st.info("No similar places found for this selection.")
         return
-    matrix = df[score_cols].fillna(0)
-    target = selected[score_cols].fillna(0).astype(float)
-    sims = matrix.astype(float).dot(target) / ((matrix.pow(2).sum(axis=1).pow(0.5) * (target.pow(2).sum() ** 0.5)) + 1e-9)
-    out = df.assign(similarity=sims).sort_values("similarity", ascending=False).head(11)
-    st.dataframe(out[out["name"] != place][["name", "categories", "cuisine", "similarity"]].head(10), use_container_width=True)
+    st.caption("Similarity is shown as a percentage based on the active data available for this project stage.")
+    cards = st.columns(2)
+    for i, (_, row) in enumerate(out.iterrows()):
+        with cards[i % 2]:
+            st.markdown(
+                f"""
+                <div class="rec-card">
+                  <div class="rec-title">{_fmt_missing(row.get("name"), "Unnamed place")}</div>
+                  <div class="rec-meta">{_fmt_missing(row.get("cuisine"))} · {_fmt_missing(row.get("categories"))}</div>
+                  <span class="pill">{float(row.get("similarity", 0)) * 100:.0f}% similar</span>
+                  <span class="pill">{_fmt_missing(row.get("similarity_basis"), "metadata match")}</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 def intelligence_page(df: pd.DataFrame, source: str) -> None:
