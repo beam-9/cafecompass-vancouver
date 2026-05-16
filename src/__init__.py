@@ -1,0 +1,2 @@
+"""CafeCompass Vancouver source package."""
+
