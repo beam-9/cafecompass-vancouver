@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import html
 import sys
 from pathlib import Path
 
@@ -71,6 +72,63 @@ def page_frame() -> None:
         div[data-testid="stMetric"] { background: #fffaf0; border: 1px solid #d7c8aa; padding: 14px; border-radius: 8px; }
         .cc-note { border-left: 4px solid #0b6b5a; padding: 10px 14px; background: #fffaf0; }
         .dark-note { background: #24231f; padding: 12px 14px; border-radius: 8px; }
+        .slider-panel {
+            background: #fff7df;
+            border: 1px solid #d6bc7d;
+            border-radius: 8px;
+            padding: 14px;
+            margin-top: 10px;
+        }
+        .slider-panel p, .slider-panel span, .slider-panel label, .slider-panel div { color: #20201d !important; }
+        .rec-card {
+            background: #fffaf0;
+            border: 1px solid #d9c79d;
+            border-left: 5px solid #0b6b5a;
+            border-radius: 8px;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 0 rgba(36, 35, 31, 0.08);
+        }
+        .rec-card * { color: #20201d !important; }
+        .rec-title {
+            font-size: 1.05rem;
+            font-weight: 800;
+            margin-bottom: 3px;
+        }
+        .rec-meta {
+            font-size: 0.88rem;
+            color: #4f4a3f !important;
+            margin-bottom: 8px;
+        }
+        .score-row {
+            display: grid;
+            grid-template-columns: 140px 1fr 48px;
+            gap: 8px;
+            align-items: center;
+            margin: 6px 0;
+            font-size: 0.86rem;
+        }
+        .score-bar {
+            height: 8px;
+            background: #eadfca;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .score-fill {
+            height: 100%;
+            background: #0b6b5a;
+        }
+        .pill {
+            display: inline-block;
+            border: 1px solid #cdbb93;
+            background: #f5ead2;
+            padding: 3px 8px;
+            border-radius: 999px;
+            font-size: 0.78rem;
+            margin-right: 5px;
+            margin-top: 4px;
+        }
+        .stSlider [data-baseweb="slider"] div { color: #20201d !important; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -120,6 +178,80 @@ def source_banner(source: str) -> None:
             "Currently showing the synthetic demo dataset. The actual Vancouver dataset will be added by running "
             "the OSM, Vancouver Open Data, Yelp Open Dataset, and optional Reddit collection pipeline."
         )
+
+
+def _fmt_missing(value: object, fallback: str = "Not available") -> str:
+    if pd.isna(value) or str(value).strip() == "":
+        return fallback
+    return html.escape(str(value))
+
+
+def _score_rows(breakdown: dict[str, float]) -> str:
+    labels = {
+        "aspect_match_score": "Experience match",
+        "semantic_similarity_score": "Text similarity",
+        "distance_score": "Distance fit",
+        "rating_score": "Rating/popularity",
+        "confidence_score": "Text confidence",
+        "context_score": "Context fit",
+        "hidden_gem_score": "Hidden-gem signal",
+    }
+    rows = []
+    for key, label in labels.items():
+        raw = float(breakdown.get(key, 0) or 0)
+        pct = max(0, min(100, raw * 100))
+        value = f"{pct:.0f}%"
+        unavailable = raw == 0 and key in {"semantic_similarity_score", "rating_score", "confidence_score", "hidden_gem_score"}
+        if unavailable:
+            value = "N/A"
+        rows.append(
+            f"""
+            <div class="score-row">
+              <div>{label}</div>
+              <div class="score-bar"><div class="score-fill" style="width:{pct:.0f}%"></div></div>
+              <div>{value}</div>
+            </div>
+            """
+        )
+    return "\n".join(rows)
+
+
+def _real_evidence(snippets: list[str]) -> list[str]:
+    unavailable = "No direct text evidence available"
+    return [snippet for snippet in snippets if unavailable not in snippet]
+
+
+def render_recommendation_card(row: pd.Series) -> None:
+    explanation = explain_recommendation(row)
+    breakdown = explanation.get("score_breakdown", {})
+    evidence = _real_evidence(explanation.get("evidence", []))
+    cuisine = _fmt_missing(row.get("cuisine"))
+    categories = _fmt_missing(row.get("categories"))
+    distance = row.get("distance_km")
+    distance_text = f"{float(distance):.1f} km away" if pd.notna(distance) else "Distance unavailable"
+    score = float(row.get("final_score", 0) or 0)
+    match_text = f"{score * 100:.0f}% match" if score <= 1 else f"{score:.2f} match score"
+    reason_items = "".join(f"<span class='pill'>{html.escape(reason)}</span>" for reason in explanation.get("reasons", [])[:2])
+    evidence_html = ""
+    if evidence:
+        evidence_html = "<div style='margin-top:10px; font-weight:700;'>Evidence from text</div>" + "".join(
+            f"<div style='font-size:0.86rem; margin-top:4px;'>\"{html.escape(snippet)}\"</div>" for snippet in evidence[:2]
+        )
+    st.markdown(
+        f"""
+        <div class="rec-card">
+          <div class="rec-title">{_fmt_missing(row.get("name"), "Unnamed place")}</div>
+          <div class="rec-meta">{distance_text} · {cuisine} · {categories}</div>
+          <div><span class="pill">{match_text}</span>{reason_items}</div>
+          <details style="margin-top:10px;">
+            <summary style="font-weight:700; cursor:pointer;">Why this ranked here</summary>
+            <div style="margin-top:8px;">{_score_rows(breakdown)}</div>
+          </details>
+          {evidence_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def overview_page(source: str) -> None:
@@ -285,10 +417,19 @@ def recommender_page(df: pd.DataFrame, source: str) -> None:
         query = st.text_input("Preference text", value=f"{experience} near {location_mode}")
         cuisine = st.text_input("Cuisine filter")
         max_distance = st.slider("Max distance (km)", 1.0, 25.0, 8.0, 0.5)
-        st.caption("Hybrid ranking weights")
+        st.markdown("<div class='slider-panel'><strong>Ranking weights</strong><br><span>Adjust how much each signal affects the order.</span></div>", unsafe_allow_html=True)
+        weight_labels = {
+            "aspect_match_score": "Experience match",
+            "semantic_similarity_score": "Text similarity",
+            "distance_score": "Distance",
+            "rating_score": "Rating/popularity",
+            "confidence_score": "Text confidence",
+            "context_score": "Context",
+            "hidden_gem_score": "Hidden gem",
+        }
         weights = {}
         for key, default in DEFAULT_WEIGHTS.items():
-            weights[key] = st.slider(key.replace("_", " "), 0.0, 1.0, float(default), 0.05)
+            weights[key] = st.slider(weight_labels.get(key, key), 0.0, 1.0, float(default), 0.05)
 
     config = RecommenderConfig(start_lat=lat, start_lon=lon, max_distance_km=max_distance, weights=weights)
     results = hybrid_recommender(df, experience, config, query_text=query, cuisine_filter=cuisine or None, top_k=10)
@@ -298,19 +439,13 @@ def recommender_page(df: pd.DataFrame, source: str) -> None:
             st.warning("No matching places found for these filters.")
             return
         st.metric("Recommendations", len(results))
+        if (pd.to_numeric(results.get("confidence_score", pd.Series(0, index=results.index)), errors="coerce").fillna(0) == 0).all():
+            st.info(
+                "These recommendations are currently based mostly on distance, cuisine/category metadata, and your filters. "
+                "Review-text evidence will appear after Yelp Open Dataset or Reddit text is linked to places."
+            )
         for _, row in results.iterrows():
-            with st.container(border=True):
-                st.subheader(row.get("name", "Unnamed place"))
-                st.write(f"Match score: {row.get('final_score', 0):.3f} | Distance: {row.get('distance_km', 0):.1f} km")
-                explanation = explain_recommendation(row)
-                st.write("Recommended because:")
-                for reason in explanation["reasons"]:
-                    st.write(f"- {reason}")
-                st.write("Evidence:")
-                for snippet in explanation["evidence"]:
-                    st.caption(snippet)
-                with st.expander("Score breakdown"):
-                    st.json(explanation["score_breakdown"])
+            render_recommendation_card(row)
 
 
 def similar_places_page(df: pd.DataFrame, source: str) -> None:
