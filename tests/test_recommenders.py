@@ -72,7 +72,7 @@ class RecommenderTests(unittest.TestCase):
         self.assertIn("distance_score", result.columns)
 
     def test_default_weights_only_expose_active_app_signals(self) -> None:
-        self.assertEqual(set(DEFAULT_WEIGHTS), {"metadata_match_score", "distance_score"})
+        self.assertEqual(set(DEFAULT_WEIGHTS), {"metadata_match_score", "distance_score", "rating_score"})
 
     def test_metadata_match_uses_cuisine_and_categories(self) -> None:
         df = demo_frame()

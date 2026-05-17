@@ -202,8 +202,9 @@ def _fmt_missing(value: object, fallback: str = "Not available") -> str:
 
 def _score_rows(breakdown: dict[str, float]) -> str:
     labels = {
-        "metadata_match_score": "Preference match",
-        "distance_score": "Distance fit",
+        "metadata_match_score": "Matches what you asked for",
+        "distance_score": "Close to your start",
+        "rating_score": "Higher rated",
     }
     rows = []
     for key, label in labels.items():
@@ -233,6 +234,10 @@ def render_recommendation_card(row: pd.Series) -> None:
     categories = _fmt_missing(row.get("categories"))
     distance = row.get("distance_km")
     distance_text = f"{float(distance):.1f} km away" if pd.notna(distance) else "Distance unavailable"
+    rating = row.get("stars")
+    rating_text = ""
+    if pd.notna(rating) and float(rating) > 0:
+        rating_text = f" · {'★' * round(float(rating))} {float(rating):.1f}/5"
     score = float(row.get("final_score", 0) or 0)
     match_text = f"{score * 100:.0f}% match" if score <= 1 else f"{score:.2f} match score"
     reason_items = "".join(f"<span class='pill'>{html.escape(reason)}</span>" for reason in explanation.get("reasons", [])[:2])
@@ -240,7 +245,7 @@ def render_recommendation_card(row: pd.Series) -> None:
         f"""
         <div class="rec-card">
           <div class="rec-title">{_fmt_missing(row.get("name"), "Unnamed place")}</div>
-          <div class="rec-meta">{distance_text} · {cuisine} · {categories}</div>
+          <div class="rec-meta">{distance_text}{rating_text} · {cuisine} · {categories}</div>
           <div><span class="pill">{match_text}</span>{reason_items}</div>
           <details style="margin-top:10px;">
             <summary style="font-weight:700; cursor:pointer;">Why this ranked here</summary>
@@ -440,40 +445,116 @@ def recommender_page(df: pd.DataFrame, source: str) -> None:
         return
 
     controls, results_col = st.columns([1, 2])
+    ratings_available = "stars" in df and pd.to_numeric(df["stars"], errors="coerce").gt(0).any()
     with controls:
-        location_mode = st.selectbox("Starting location", [*LOCATIONS.keys(), "Custom latitude/longitude"])
-        if location_mode == "Custom latitude/longitude":
-            lat = st.number_input("Latitude", value=VANCOUVER_CENTER[0], format="%.6f")
-            lon = st.number_input("Longitude", value=VANCOUVER_CENTER[1], format="%.6f")
-        else:
-            lat, lon = LOCATIONS[location_mode]
-        experience = st.selectbox("Desired experience", EXPERIENCES)
-        query = st.text_input("Preference text", value=f"{experience} near {location_mode}")
-        cuisine = st.text_input("Cuisine filter")
-        max_distance = st.slider("Max distance (km)", 1.0, 25.0, 8.0, 0.5)
-        st.markdown(
-            "<div class='slider-panel'><strong>Ranking weights</strong><br>"
-            "<span>Preference match compares your text with place names, cuisines, and categories. "
-            "Distance fit rewards places closer to your starting point.</span></div>",
-            unsafe_allow_html=True,
-        )
-        weight_labels = {
-            "metadata_match_score": "Preference match",
-            "distance_score": "Distance fit",
-        }
-        weights = {}
-        for key, default in DEFAULT_WEIGHTS.items():
-            weights[key] = st.slider(weight_labels.get(key, key), 0.0, 1.0, float(default), 0.05)
+        with st.form("recommendation_controls"):
+            location_mode = st.selectbox("Starting location", [*LOCATIONS.keys(), "Custom latitude/longitude"])
+            if location_mode == "Custom latitude/longitude":
+                lat = st.number_input("Latitude", value=VANCOUVER_CENTER[0], format="%.6f")
+                lon = st.number_input("Longitude", value=VANCOUVER_CENTER[1], format="%.6f")
+            else:
+                lat, lon = LOCATIONS[location_mode]
+            experience = st.selectbox("What are you looking for?", EXPERIENCES)
+            details = st.text_input("Optional details", placeholder="ramen, matcha, vegetarian, food court")
+            cuisine = st.text_input("Cuisine filter", placeholder="Japanese, Chinese, coffee")
+            max_distance = st.slider("How far are you willing to go?", 1.0, 25.0, 8.0, 0.5, format="%.1f km")
+            min_rating = 0.0
+            if ratings_available:
+                min_rating = st.slider("Minimum rating", 1.0, 5.0, 1.0, 0.5, format="%.1f ★")
+            st.markdown(
+                "<div class='slider-panel'><strong>What should matter most?</strong><br>"
+                "<span>These sliders change the order of the recommendations.</span></div>",
+                unsafe_allow_html=True,
+            )
+            preference_weight = st.slider(
+                "Match my craving",
+                0.0,
+                1.0,
+                float(DEFAULT_WEIGHTS["metadata_match_score"]),
+                0.05,
+                help="Higher means places with matching cuisine, category, or name words rank first.",
+            )
+            distance_weight = st.slider(
+                "Stay nearby",
+                0.0,
+                1.0,
+                float(DEFAULT_WEIGHTS["distance_score"]),
+                0.05,
+                help="Higher means closer places rank first.",
+            )
+            rating_weight = 0.0
+            if ratings_available:
+                rating_weight = st.slider(
+                    "Prefer higher-rated places",
+                    0.0,
+                    1.0,
+                    0.25,
+                    0.05,
+                    help="Higher means star ratings matter more in the ranking.",
+                )
+            submitted = st.form_submit_button("Find recommendations")
 
-    config = RecommenderConfig(start_lat=lat, start_lon=lon, max_distance_km=max_distance, weights=weights)
-    results = hybrid_recommender(df, experience, config, query_text=query, cuisine_filter=cuisine or None, top_k=10)
+    default_params = {
+        "lat": LOCATIONS["UBC"][0],
+        "lon": LOCATIONS["UBC"][1],
+        "location_mode": "UBC",
+        "experience": EXPERIENCES[0],
+        "details": "",
+        "cuisine": "",
+        "max_distance": 8.0,
+        "min_rating": 0.0,
+        "weights": {
+            "metadata_match_score": DEFAULT_WEIGHTS["metadata_match_score"],
+            "distance_score": DEFAULT_WEIGHTS["distance_score"],
+            "rating_score": 0.0,
+        },
+    }
+    if submitted or "recommender_params" not in st.session_state:
+        query_parts = [experience, details, f"near {location_mode}"]
+        query = " ".join(part for part in query_parts if str(part).strip())
+        st.session_state["recommender_params"] = {
+            "lat": lat,
+            "lon": lon,
+            "location_mode": location_mode,
+            "experience": experience,
+            "query": query,
+            "cuisine": cuisine,
+            "max_distance": max_distance,
+            "min_rating": min_rating,
+            "weights": {
+                "metadata_match_score": preference_weight,
+                "distance_score": distance_weight,
+                "rating_score": rating_weight,
+            },
+        }
+    params = {**default_params, **st.session_state.get("recommender_params", {})}
+    config = RecommenderConfig(
+        start_lat=params["lat"],
+        start_lon=params["lon"],
+        max_distance_km=params["max_distance"],
+        weights=params["weights"],
+    )
+    features = df.copy()
+    if ratings_available and params["min_rating"] > 1.0 and "stars" in features:
+        features = features[pd.to_numeric(features["stars"], errors="coerce").fillna(0) >= params["min_rating"]]
+    results = hybrid_recommender(
+        features,
+        params["experience"],
+        config,
+        query_text=params.get("query"),
+        cuisine_filter=params["cuisine"] or None,
+        top_k=10,
+    )
 
     with results_col:
         if results.empty:
             st.warning("No matching places found for these filters.")
             return
         st.metric("Recommendations", len(results))
-        st.info("Ranking is based on preference metadata fit and distance from the selected starting point.")
+        st.info(
+            f"Showing places for: {params['experience']} near {params['location_mode']}. "
+            "The ranking uses the controls you selected on the left."
+        )
         visible_count = 4
         show_more_key = "show_all_recommendations"
         if show_more_key not in st.session_state:

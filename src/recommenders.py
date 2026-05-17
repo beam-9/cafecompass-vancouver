@@ -13,6 +13,7 @@ from config import ASPECTS, MODELS_DIR, PROCESSED_DIR
 DEFAULT_WEIGHTS = {
     "metadata_match_score": 0.65,
     "distance_score": 0.35,
+    "rating_score": 0.0,
 }
 
 EXPERIENCE_PRESETS = {
@@ -219,6 +220,6 @@ def hybrid_recommender(
     for col, weight in weights.items():
         if col in out.columns:
             out["final_score"] += out[col].fillna(0) * (weight / weight_sum)
-    breakdown_cols = [c for c in [*DEFAULT_WEIGHTS] if c in out.columns]
+    breakdown_cols = [c for c, weight in weights.items() if weight > 0 and c in out.columns]
     out["score_breakdown_json"] = out[breakdown_cols].apply(lambda r: json.dumps(r.to_dict()), axis=1)
     return out.sort_values("final_score", ascending=False).head(top_k)
