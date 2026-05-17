@@ -661,9 +661,83 @@ def evaluation_page() -> None:
     if results.empty:
         st.info("Evaluation results are not available yet. Run `python src/evaluation.py` after building features.")
         return
-    st.dataframe(results, use_container_width=True)
-    fig = px.bar(results, x="query", y="precision_at_10_aspect", color="model", barmode="group", height=520)
-    st.plotly_chart(fig, use_container_width=True)
+
+    st.write(
+        "This page explains how I evaluate the recommender. At the current project stage, the real dataset has "
+        "place metadata from OSM/City sources, but it does not yet have linked review text or ratings. That means "
+        "review-based metrics such as aspect precision and explanation coverage are expected to be zero for now."
+    )
+
+    st.subheader("What each model means")
+    model_cards = [
+        (
+            "Distance baseline",
+            "Ranks places only by how close they are to the selected starting point. This is the simplest baseline.",
+        ),
+        (
+            "Rating/popularity baseline",
+            "Ranks by stars and review count when those fields exist. With OSM-only metadata, this model is not meaningful yet.",
+        ),
+        (
+            "Hybrid recommender",
+            "Combines distance with metadata match now, and will also use aspect scores, semantic similarity, ratings, confidence, and hidden-gem signals once review text is linked.",
+        ),
+    ]
+    model_cols = st.columns(3)
+    for col, (title, body) in zip(model_cols, model_cards):
+        with col:
+            st.markdown(
+                f"""
+                <div class="rec-card" style="min-height:150px;">
+                  <div class="rec-title">{title}</div>
+                  <div class="rec-meta">{body}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    numeric = results.copy()
+    metric_cols = st.columns(4)
+    metric_cols[0].metric("Synthetic queries", numeric["query"].nunique())
+    metric_cols[1].metric("Models compared", numeric["model"].nunique())
+    metric_cols[2].metric("Avg top-10 coverage", f"{numeric['coverage'].mean():.0f}" if "coverage" in numeric else "N/A")
+    metric_cols[3].metric("Explanation coverage", f"{numeric['explanation_coverage'].mean() * 100:.0f}%" if "explanation_coverage" in numeric else "N/A")
+
+    if "precision_at_10_aspect" in numeric and numeric["precision_at_10_aspect"].fillna(0).sum() == 0:
+        st.info(
+            "Aspect Precision@10 is currently 0% because no Yelp/Reddit review text has been linked to the real place table yet. "
+            "This is a data-readiness signal, not evidence that the ranking model failed."
+        )
+
+    st.subheader("Current sanity checks")
+    summary = (
+        numeric.groupby("model", as_index=False)
+        .agg(
+            avg_distance_km=("average_distance_km", "mean"),
+            avg_cuisine_diversity=("cuisine_diversity_at_10", "mean"),
+            avg_category_diversity=("category_diversity_at_10", "mean"),
+            avg_coverage=("coverage", "mean"),
+            explanation_coverage=("explanation_coverage", "mean"),
+        )
+        .fillna("Not available")
+    )
+    st.dataframe(summary, use_container_width=True, hide_index=True)
+
+    distance_ready = summary[summary["avg_distance_km"] != "Not available"].copy()
+    if not distance_ready.empty:
+        fig = px.bar(
+            distance_ready,
+            x="model",
+            y="avg_distance_km",
+            title="Average distance in top recommendations",
+            labels={"model": "Model", "avg_distance_km": "Average distance (km)"},
+            height=380,
+        )
+        fig.update_layout(margin={"r": 20, "t": 50, "l": 20, "b": 20})
+        st.plotly_chart(fig, use_container_width=True)
+
+    with st.expander("Raw evaluation output"):
+        st.dataframe(results, use_container_width=True, hide_index=True)
 
 
 def main() -> None:
