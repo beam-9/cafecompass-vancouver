@@ -11,13 +11,8 @@ import pandas as pd
 from config import ASPECTS, MODELS_DIR, PROCESSED_DIR
 
 DEFAULT_WEIGHTS = {
-    "aspect_match_score": 0.30,
-    "semantic_similarity_score": 0.20,
-    "distance_score": 0.15,
-    "rating_score": 0.00,
-    "confidence_score": 0.10,
-    "context_score": 0.10,
-    "hidden_gem_score": 0.05,
+    "metadata_match_score": 0.65,
+    "distance_score": 0.35,
 }
 
 EXPERIENCE_PRESETS = {
@@ -134,6 +129,12 @@ def _normalize(values: pd.Series) -> pd.Series:
     return (values - low) / (high - low)
 
 
+def _numeric_column(df: pd.DataFrame, column: str, default: float = 0.0) -> pd.Series:
+    if column not in df:
+        return pd.Series(default, index=df.index)
+    return pd.to_numeric(df[column], errors="coerce").fillna(default)
+
+
 def add_distance_scores(df: pd.DataFrame, config: RecommenderConfig) -> pd.DataFrame:
     out = df.copy()
     out["distance_km"] = out.apply(
@@ -150,7 +151,7 @@ def distance_baseline(df: pd.DataFrame, config: RecommenderConfig, top_k: int = 
 
 def rating_popularity_baseline(df: pd.DataFrame, top_k: int = 10) -> pd.DataFrame:
     out = df.copy()
-    out["rating_score"] = 0.6 * _normalize(out.get("stars", 0)) + 0.4 * _normalize(np.log1p(pd.to_numeric(out.get("review_count", 0), errors="coerce").fillna(0)))
+    out["rating_score"] = 0.6 * _normalize(_numeric_column(out, "stars")) + 0.4 * _normalize(np.log1p(_numeric_column(out, "review_count")))
     return out.sort_values("rating_score", ascending=False).head(top_k)
 
 
@@ -206,10 +207,11 @@ def hybrid_recommender(
     out = aspect_based_recommender(out, experience, top_k=len(out))
     out["semantic_similarity_score"] = _semantic_scores(out, query_text or str(experience))
     out["metadata_match_score"] = metadata_match_scores(out, experience, query_text)
-    out["rating_score"] = 0.6 * _normalize(out.get("stars", 0)) + 0.4 * _normalize(np.log1p(pd.to_numeric(out.get("review_count", 0), errors="coerce").fillna(0)))
+    out["rating_score"] = 0.6 * _normalize(_numeric_column(out, "stars")) + 0.4 * _normalize(np.log1p(_numeric_column(out, "review_count")))
     out["context_score"] = out[["aspect_match_score", "metadata_match_score"]].max(axis=1)
-    out["hidden_gem_score"] = out.get("hidden_gem_adjusted_score", out.get("hidden_gem_score", 0)).fillna(0)
-    out["confidence_score"] = out.get("confidence_score", 0).fillna(0)
+    hidden_source = "hidden_gem_adjusted_score" if "hidden_gem_adjusted_score" in out else "hidden_gem_score"
+    out["hidden_gem_score"] = _numeric_column(out, hidden_source)
+    out["confidence_score"] = _numeric_column(out, "confidence_score")
 
     weights = config.weights or DEFAULT_WEIGHTS
     weight_sum = sum(weights.values()) or 1
@@ -217,6 +219,6 @@ def hybrid_recommender(
     for col, weight in weights.items():
         if col in out.columns:
             out["final_score"] += out[col].fillna(0) * (weight / weight_sum)
-    breakdown_cols = [c for c in [*DEFAULT_WEIGHTS, "metadata_match_score"] if c in out.columns]
+    breakdown_cols = [c for c in [*DEFAULT_WEIGHTS] if c in out.columns]
     out["score_breakdown_json"] = out[breakdown_cols].apply(lambda r: json.dumps(r.to_dict()), axis=1)
     return out.sort_values("final_score", ascending=False).head(top_k)

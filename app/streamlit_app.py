@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import html
 import math
 import re
@@ -16,7 +15,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from config import ASPECTS, PROCESSED_DIR, UBC_CENTER, VANCOUVER_CENTER
+from config import PROCESSED_DIR, UBC_CENTER, VANCOUVER_CENTER
 from explainability import explain_recommendation
 from recommenders import DEFAULT_WEIGHTS, RecommenderConfig, hybrid_recommender
 
@@ -190,8 +189,8 @@ def setup_message() -> None:
 def source_banner(source: str) -> None:
     if source == "sample":
         st.warning(
-            "Currently showing the synthetic demo dataset. The actual Vancouver dataset will be added by running "
-            "the OSM, Vancouver Open Data, Yelp Open Dataset, and optional Reddit collection pipeline."
+            "Currently showing the synthetic demo dataset. Run the local data pipeline to build the Vancouver "
+            "place metadata used by the map and recommender."
         )
 
 
@@ -203,14 +202,8 @@ def _fmt_missing(value: object, fallback: str = "Not available") -> str:
 
 def _score_rows(breakdown: dict[str, float]) -> str:
     labels = {
-        "aspect_match_score": "Experience match",
-        "metadata_match_score": "Cuisine/type match",
-        "semantic_similarity_score": "Text similarity",
+        "metadata_match_score": "Preference match",
         "distance_score": "Distance fit",
-        "rating_score": "Rating/popularity",
-        "confidence_score": "Text confidence",
-        "context_score": "Context fit",
-        "hidden_gem_score": "Hidden-gem signal",
     }
     rows = []
     for key, label in labels.items():
@@ -229,19 +222,13 @@ def _score_rows(breakdown: dict[str, float]) -> str:
             """
         )
     if not rows:
-        return "<div style='font-size:0.88rem;'>No active ranking signals are available for this place yet.</div>"
+        return "<div style='font-size:0.88rem;'>This place matched through available map metadata.</div>"
     return "\n".join(rows)
-
-
-def _real_evidence(snippets: list[str]) -> list[str]:
-    unavailable = "No direct text evidence available"
-    return [snippet for snippet in snippets if unavailable not in snippet]
 
 
 def render_recommendation_card(row: pd.Series) -> None:
     explanation = explain_recommendation(row)
     breakdown = explanation.get("score_breakdown", {})
-    evidence = _real_evidence(explanation.get("evidence", []))
     cuisine = _fmt_missing(row.get("cuisine"))
     categories = _fmt_missing(row.get("categories"))
     distance = row.get("distance_km")
@@ -249,11 +236,6 @@ def render_recommendation_card(row: pd.Series) -> None:
     score = float(row.get("final_score", 0) or 0)
     match_text = f"{score * 100:.0f}% match" if score <= 1 else f"{score:.2f} match score"
     reason_items = "".join(f"<span class='pill'>{html.escape(reason)}</span>" for reason in explanation.get("reasons", [])[:2])
-    evidence_html = ""
-    if evidence:
-        evidence_html = "<div style='margin-top:10px; font-weight:700;'>Evidence from text</div>" + "".join(
-            f"<div style='font-size:0.86rem; margin-top:4px;'>\"{html.escape(snippet)}\"</div>" for snippet in evidence[:2]
-        )
     st.markdown(
         f"""
         <div class="rec-card">
@@ -264,7 +246,6 @@ def render_recommendation_card(row: pd.Series) -> None:
             <summary style="font-weight:700; cursor:pointer;">Why this ranked here</summary>
             <div style="margin-top:8px;">{_score_rows(breakdown)}</div>
           </details>
-          {evidence_html}
         </div>
         """,
         unsafe_allow_html=True,
@@ -292,43 +273,34 @@ def _simple_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> f
 
 
 def similar_places(df: pd.DataFrame, selected: pd.Series) -> pd.DataFrame:
-    score_cols = [f"{a}_score" for a in ASPECTS if f"{a}_score" in df.columns]
-    has_aspects = bool(score_cols) and (df[score_cols].fillna(0).sum(axis=1) > 0).any()
     out = df.copy()
-    if has_aspects:
-        matrix = out[score_cols].fillna(0).astype(float)
-        target = selected[score_cols].fillna(0).astype(float)
-        denom = (matrix.pow(2).sum(axis=1).pow(0.5) * (target.pow(2).sum() ** 0.5)) + 1e-9
-        out["similarity"] = matrix.dot(target) / denom
-        out["similarity_basis"] = "Review aspect profile"
-    else:
-        target_tokens = _metadata_tokens(selected)
-        selected_lat = selected.get("latitude")
-        selected_lon = selected.get("longitude")
-        scores = []
-        basis = []
-        for _, row in out.iterrows():
-            tokens = _metadata_tokens(row)
-            union = target_tokens.union(tokens)
-            token_score = len(target_tokens.intersection(tokens)) / len(union) if union else 0.0
-            same_cuisine = str(row.get("cuisine", "")).lower() == str(selected.get("cuisine", "")).lower()
-            same_category = str(row.get("categories", "")).lower() == str(selected.get("categories", "")).lower()
-            distance = _simple_distance_km(selected_lat, selected_lon, row.get("latitude"), row.get("longitude"))
-            distance_score = max(0.0, 1 - distance / 10)
-            score = 0.55 * token_score + 0.20 * float(same_cuisine) + 0.15 * float(same_category) + 0.10 * distance_score
-            scores.append(score)
-            reasons = []
-            if same_cuisine and pd.notna(row.get("cuisine")):
-                reasons.append("same cuisine")
-            if same_category and pd.notna(row.get("categories")):
-                reasons.append("same place type")
-            if token_score > 0:
-                reasons.append("similar name/category terms")
-            if distance_score > 0:
-                reasons.append("nearby")
-            basis.append(", ".join(reasons) or "metadata fallback")
-        out["similarity"] = scores
-        out["similarity_basis"] = basis
+    target_tokens = _metadata_tokens(selected)
+    selected_lat = selected.get("latitude")
+    selected_lon = selected.get("longitude")
+    scores = []
+    basis = []
+    for _, row in out.iterrows():
+        tokens = _metadata_tokens(row)
+        union = target_tokens.union(tokens)
+        token_score = len(target_tokens.intersection(tokens)) / len(union) if union else 0.0
+        same_cuisine = str(row.get("cuisine", "")).lower() == str(selected.get("cuisine", "")).lower()
+        same_category = str(row.get("categories", "")).lower() == str(selected.get("categories", "")).lower()
+        distance = _simple_distance_km(selected_lat, selected_lon, row.get("latitude"), row.get("longitude"))
+        distance_score = max(0.0, 1 - distance / 10)
+        score = 0.55 * token_score + 0.20 * float(same_cuisine) + 0.15 * float(same_category) + 0.10 * distance_score
+        scores.append(score)
+        reasons = []
+        if same_cuisine and pd.notna(row.get("cuisine")):
+            reasons.append("same cuisine")
+        if same_category and pd.notna(row.get("categories")):
+            reasons.append("same place type")
+        if token_score > 0:
+            reasons.append("similar name/category terms")
+        if distance_score > 0:
+            reasons.append("nearby")
+        basis.append(", ".join(reasons) or "metadata match")
+    out["similarity"] = scores
+    out["similarity_basis"] = basis
     selected_name = _normalized_place_name(selected.get("name"))
     if "place_id" in out.columns:
         out = out[out["place_id"] != selected.get("place_id")]
@@ -344,7 +316,7 @@ def similar_places(df: pd.DataFrame, selected: pd.Series) -> pd.DataFrame:
 
 def overview_page(source: str) -> None:
     st.title("CafeCompass Vancouver")
-    st.subheader("Review-aware cafe and food spot recommendations")
+    st.subheader("A metadata-aware cafe and food spot recommender")
     st.markdown(
         """
         <div class="cc-note">
@@ -358,21 +330,20 @@ def overview_page(source: str) -> None:
         unsafe_allow_html=True,
     )
     st.write(
-        "The project avoids scraping Google Maps, Yelp pages, TripAdvisor, or similar review platforms. "
-        "It uses permitted/public sources such as the Yelp Open Dataset, Reddit API, OpenStreetMap, "
-        "City of Vancouver Open Data, and optional Foursquare OS Places."
+        "The app currently focuses on a practical first version: it uses Vancouver place metadata, cuisine tags, "
+        "category tags, coordinates, and the preference text a user types in. That means it can answer questions "
+        "like where to find Japanese food near UBC, cafes around Kitsilano, or quick food options near Downtown."
     )
     st.write(
-        "Technically, this project combines NLP, geospatial filtering, fuzzy entity matching, sentiment scoring, "
-        "sentence embeddings, and hybrid recommendation ranking. The pipeline turns messy review or community text "
-        "into structured aspect signals such as quiet-study, cheap-value, date-night, hidden-gem, authentic-food, "
-        "group-friendly, dessert/drinks, and late-night intent."
+        "The technical focus in this version is geospatial filtering, Haversine distance scoring, metadata cleaning, "
+        "fuzzy place matching, cuisine/category normalization, and a simple hybrid ranking model. The recommender "
+        "compares the user's preference text against place names, cuisine labels, and place types, then balances that "
+        "preference fit against distance from the selected starting point."
     )
     st.write(
-        "The recommender compares several approaches: a distance-only baseline, a rating/popularity baseline, "
-        "an aspect-profile recommender, and a hybrid model that combines aspect match, semantic similarity, "
-        "distance, rating, confidence, context match, and hidden-gem adjustment. I also keep evidence snippets "
-        "from the original text so the app can explain why each place was recommended instead of returning a black-box list."
+        "I still designed the repository so it can grow into richer text-based recommendation later, but the app itself "
+        "only shows signals that are active and understandable right now. The goal is a coherent portfolio demo that is "
+        "honest about its data while still feeling useful for exploring Vancouver."
     )
     source_banner(source)
 
@@ -385,14 +356,12 @@ def map_page(df: pd.DataFrame, source: str) -> None:
         return
 
     st.write(
-        "Use this page to inspect place coverage before trusting the recommender. "
-        "The current actual dataset is strongest for names, locations, cuisines, and place types. "
-        "Ratings and review-text signals appear only after Yelp Open Dataset or Reddit text is added."
+        "Use this page to inspect Vancouver place coverage before using the recommender. "
+        "The map is strongest for names, locations, cuisines, and place types."
     )
 
     left, right = st.columns([1, 3])
     ratings_available = "stars" in df and pd.to_numeric(df["stars"], errors="coerce").notna().any()
-    text_available = "confidence_score" in df and (pd.to_numeric(df["confidence_score"], errors="coerce").fillna(0) > 0).any()
     with left:
         search = st.text_input("Search name, cuisine, or category", placeholder="Japanese, Chinese, ramen, cafe")
         cuisine_options = sorted([c for c in df.get("cuisine", pd.Series(dtype=str)).dropna().astype(str).unique() if c])
@@ -406,14 +375,7 @@ def map_page(df: pd.DataFrame, source: str) -> None:
         color_options = ["Cuisine", "Place type"]
         if ratings_available:
             color_options.append("Rating")
-        if text_available:
-            color_options.extend(["Text evidence", "Quiet study", "Cheap value", "Date night", "Hidden gem", "Authentic", "Group friendly", "Dessert/drinks", "Late night"])
         color_label = st.selectbox("Color map by", color_options)
-        if not ratings_available or not text_available:
-            st.caption(
-                "Ratings, review counts, confidence, and hidden-gem scores are unavailable for OSM-only places. "
-                "They will become meaningful after review/community text is joined to these places."
-            )
     view = df.copy()
     if search:
         mask = pd.Series(False, index=view.index)
@@ -433,15 +395,6 @@ def map_page(df: pd.DataFrame, source: str) -> None:
         "Cuisine": "cuisine",
         "Place type": "categories",
         "Rating": "stars",
-        "Text evidence": "confidence_score",
-        "Quiet study": "quiet_study_score",
-        "Cheap value": "cheap_value_score",
-        "Date night": "date_night_score",
-        "Hidden gem": "hidden_gem_adjusted_score",
-        "Authentic": "authentic_score",
-        "Group friendly": "group_friendly_score",
-        "Dessert/drinks": "dessert_drinks_score",
-        "Late night": "late_night_score",
     }
     color_col = aspect_map.get(color_label, "cuisine")
 
@@ -449,15 +402,10 @@ def map_page(df: pd.DataFrame, source: str) -> None:
         metric_cols = st.columns(4)
         metric_cols[0].metric("Places shown", len(view))
         metric_cols[1].metric("Cuisines", view["cuisine"].nunique() if "cuisine" in view else 0)
-        rating_values = pd.to_numeric(view.get("stars", pd.Series(dtype=float)), errors="coerce")
-        metric_cols[2].metric("Ratings available", int(rating_values.notna().sum()))
-        evidence = view.get("confidence_score", pd.Series(0, index=view.index)).fillna(0)
-        metric_cols[3].metric("With text evidence", int((evidence > 0).sum()))
-        if not ratings_available and not text_available:
-            st.info(
-                "This map is currently a real place-coverage layer from OSM and City data. "
-                "It is useful for exploring where restaurants and cafes are, but it should not be interpreted as ranked quality yet."
-            )
+        named_places = view.get("name", pd.Series(dtype=str)).fillna("").astype(str).str.strip().ne("").sum()
+        cuisine_tagged = view.get("cuisine", pd.Series(dtype=str)).fillna("").astype(str).str.strip().ne("").sum()
+        metric_cols[2].metric("Named places", int(named_places))
+        metric_cols[3].metric("Cuisine-tagged", int(cuisine_tagged))
         if view.empty:
             st.warning("No places match these filters. Clear the search or lower the rating filter.")
             return
@@ -474,14 +422,12 @@ def map_page(df: pd.DataFrame, source: str) -> None:
         )
         fig.update_layout(mapbox_style="open-street-map", margin={"r": 0, "t": 0, "l": 0, "b": 0})
         st.plotly_chart(fig, use_container_width=True)
-        table_cols = [c for c in ["name", "cuisine", "categories", "stars", "review_count", "confidence_score"] if c in view.columns]
+        table_cols = [c for c in ["name", "cuisine", "categories", "latitude", "longitude", "stars", "review_count"] if c in view.columns]
         display_view = view[table_cols].copy()
         if "stars" in display_view:
             display_view["stars"] = display_view["stars"].fillna("Not available")
         if "review_count" in display_view:
             display_view["review_count"] = display_view["review_count"].fillna("Not available")
-        if "confidence_score" in display_view:
-            display_view["confidence_score"] = display_view["confidence_score"].map(lambda value: "Review text not linked yet" if pd.isna(value) or float(value) == 0 else f"{float(value):.2f}")
         with st.expander("Show place data used for this map"):
             st.dataframe(display_view.sort_values(["cuisine", "name"]), use_container_width=True, hide_index=True)
 
@@ -505,29 +451,19 @@ def recommender_page(df: pd.DataFrame, source: str) -> None:
         query = st.text_input("Preference text", value=f"{experience} near {location_mode}")
         cuisine = st.text_input("Cuisine filter")
         max_distance = st.slider("Max distance (km)", 1.0, 25.0, 8.0, 0.5)
-        st.markdown("<div class='slider-panel'><strong>Ranking weights</strong><br><span>Adjust how much each signal affects the order.</span></div>", unsafe_allow_html=True)
-        ratings_available = "stars" in df and pd.to_numeric(df["stars"], errors="coerce").notna().any()
-        text_available = "confidence_score" in df and (pd.to_numeric(df["confidence_score"], errors="coerce").fillna(0) > 0).any()
-        embeddings_available = "place_embedding_available" in df and df["place_embedding_available"].fillna(False).astype(bool).any()
+        st.markdown(
+            "<div class='slider-panel'><strong>Ranking weights</strong><br>"
+            "<span>Preference match compares your text with place names, cuisines, and categories. "
+            "Distance fit rewards places closer to your starting point.</span></div>",
+            unsafe_allow_html=True,
+        )
         weight_labels = {
-            "aspect_match_score": "Experience match",
-            "semantic_similarity_score": "Text similarity",
-            "distance_score": "Distance",
-            "rating_score": "Rating/popularity",
-            "confidence_score": "Text confidence",
-            "context_score": "Context",
-            "hidden_gem_score": "Hidden gem",
+            "metadata_match_score": "Preference match",
+            "distance_score": "Distance fit",
         }
         weights = {}
         for key, default in DEFAULT_WEIGHTS.items():
-            disabled = (
-                (key in {"aspect_match_score", "confidence_score", "hidden_gem_score"} and not text_available)
-                or (key == "semantic_similarity_score" and not embeddings_available)
-                or (key == "rating_score" and not ratings_available)
-            )
-            weights[key] = st.slider(weight_labels.get(key, key), 0.0, 1.0, 0.0 if disabled else float(default), 0.05, disabled=disabled)
-        if not text_available or not ratings_available:
-            st.caption("Disabled sliders need review text, embeddings, or ratings that are not linked to the current OSM/City metadata yet.")
+            weights[key] = st.slider(weight_labels.get(key, key), 0.0, 1.0, float(default), 0.05)
 
     config = RecommenderConfig(start_lat=lat, start_lon=lon, max_distance_km=max_distance, weights=weights)
     results = hybrid_recommender(df, experience, config, query_text=query, cuisine_filter=cuisine or None, top_k=10)
@@ -537,11 +473,7 @@ def recommender_page(df: pd.DataFrame, source: str) -> None:
             st.warning("No matching places found for these filters.")
             return
         st.metric("Recommendations", len(results))
-        if (pd.to_numeric(results.get("confidence_score", pd.Series(0, index=results.index)), errors="coerce").fillna(0) == 0).all():
-            st.info(
-                "These recommendations are currently ranked by distance plus cuisine/category/name matches from OSM and City metadata. "
-                "Review-text evidence will appear after Yelp Open Dataset or Reddit text is linked to places."
-            )
+        st.info("Ranking is based on preference metadata fit and distance from the selected starting point.")
         visible_count = 4
         show_more_key = "show_all_recommendations"
         if show_more_key not in st.session_state:
@@ -569,8 +501,7 @@ def similar_places_page(df: pd.DataFrame, source: str) -> None:
         setup_message()
         return
     st.write(
-        "Find places that are similar by cuisine, place type, name/category terms, and distance. "
-        "Once review text is linked, this page can switch to review-aspect similarity."
+        "Find places that are similar by cuisine, place type, name/category terms, and distance."
     )
     option_df = df.copy()
     option_df["display_name"] = option_df["name"].fillna("Unnamed").astype(str)
@@ -608,24 +539,18 @@ def data_coverage_page(df: pd.DataFrame, source: str) -> None:
         setup_message()
         return
     st.write(
-        "This page shows what data the project currently has. Right now, the real dataset is strongest for "
-        "place coverage from OpenStreetMap and City of Vancouver metadata. Review intelligence will become useful "
-        "after review/community text is linked to these places."
+        "This page shows the coverage behind the current app: Vancouver food-place names, coordinates, cuisine tags, "
+        "place types, and source metadata."
     )
 
     rating_values = pd.to_numeric(df.get("stars", pd.Series(dtype=float)), errors="coerce")
-    confidence_values = pd.to_numeric(df.get("confidence_score", pd.Series(0, index=df.index)), errors="coerce").fillna(0)
+    named_places = df.get("name", pd.Series(dtype=str)).fillna("").astype(str).str.strip().ne("").sum()
+    cuisine_tagged = df.get("cuisine", pd.Series(dtype=str)).fillna("").astype(str).str.strip().ne("").sum()
     metric_cols = st.columns(4)
     metric_cols[0].metric("Places", f"{len(df):,}")
     metric_cols[1].metric("Cuisines", df["cuisine"].nunique() if "cuisine" in df else 0)
-    metric_cols[2].metric("Ratings linked", int(rating_values.notna().sum()))
-    metric_cols[3].metric("Text evidence linked", int((confidence_values > 0).sum()))
-
-    if int((confidence_values > 0).sum()) == 0:
-        st.info(
-            "No review-text evidence is linked yet, so quiet-study, hidden-gem, date-night, and similar review intelligence "
-            "scores are intentionally hidden for now."
-        )
+    metric_cols[2].metric("Named places", int(named_places))
+    metric_cols[3].metric("Cuisine-tagged", int(cuisine_tagged))
 
     left, right = st.columns(2)
     with left:
@@ -647,40 +572,39 @@ def data_coverage_page(df: pd.DataFrame, source: str) -> None:
         category_counts.columns = ["Place type", "Places"]
         st.dataframe(category_counts, use_container_width=True, hide_index=True)
 
-    with st.expander("What is missing before review intelligence works?"):
+    with st.expander("Show rating availability"):
         st.write(
-            "The project still needs Yelp Open Dataset review files and/or Reddit API text linked to the OSM/City place table. "
-            "After that, the NLP pipeline can extract aspect scores for quiet study, date night, cheap value, hidden gems, "
-            "authentic food, service speed, group-friendly, dessert/drinks, and late-night food."
+            "Some sources include ratings while others only provide place metadata. The recommender does not rely on "
+            "ratings in this streamlined version."
         )
+        st.metric("Rows with ratings", int(rating_values.notna().sum()))
 
 
 def evaluation_page() -> None:
-    st.title("Model Evaluation")
+    st.title("Ranking Logic")
     results = load_evaluation(processed_data_version())
     if results.empty:
         st.info("Evaluation results are not available yet. Run `python src/evaluation.py` after building features.")
         return
 
     st.write(
-        "This page explains how I evaluate the recommender. At the current project stage, the real dataset has "
-        "place metadata from OSM/City sources, but it does not yet have linked review text or ratings. That means "
-        "review-based metrics such as aspect precision and explanation coverage are expected to be zero for now."
+        "This page explains the active ranking model. The current app ranks places by combining preference metadata "
+        "fit with distance from the selected starting point."
     )
 
-    st.subheader("What each model means")
+    st.subheader("What each ranking method means")
     model_cards = [
         (
             "Distance baseline",
-            "Ranks places only by how close they are to the selected starting point. This is the simplest baseline.",
+            "Ranks places only by how close they are to the selected starting point.",
         ),
         (
-            "Rating/popularity baseline",
-            "Ranks by stars and review count when those fields exist. With OSM-only metadata, this model is not meaningful yet.",
+            "Preference match",
+            "Compares the user's words with place names, cuisine tags, and categories.",
         ),
         (
-            "Hybrid recommender",
-            "Combines distance with metadata match now, and will also use aspect scores, semantic similarity, ratings, confidence, and hidden-gem signals once review text is linked.",
+            "Current hybrid",
+            "Combines preference match and distance fit, with sliders controlling the balance.",
         ),
     ]
     model_cols = st.columns(3)
@@ -701,15 +625,12 @@ def evaluation_page() -> None:
     metric_cols[0].metric("Synthetic queries", numeric["query"].nunique())
     metric_cols[1].metric("Models compared", numeric["model"].nunique())
     metric_cols[2].metric("Avg top-10 coverage", f"{numeric['coverage'].mean():.0f}" if "coverage" in numeric else "N/A")
-    metric_cols[3].metric("Explanation coverage", f"{numeric['explanation_coverage'].mean() * 100:.0f}%" if "explanation_coverage" in numeric else "N/A")
+    metric_cols[3].metric(
+        "Avg distance",
+        f"{numeric['average_distance_km'].mean():.1f} km" if "average_distance_km" in numeric else "N/A",
+    )
 
-    if "precision_at_10_aspect" in numeric and numeric["precision_at_10_aspect"].fillna(0).sum() == 0:
-        st.info(
-            "Aspect Precision@10 is currently 0% because no Yelp/Reddit review text has been linked to the real place table yet. "
-            "This is a data-readiness signal, not evidence that the ranking model failed."
-        )
-
-    st.subheader("Current sanity checks")
+    st.subheader("Current ranking sanity checks")
     summary = (
         numeric.groupby("model", as_index=False)
         .agg(
@@ -717,7 +638,6 @@ def evaluation_page() -> None:
             avg_cuisine_diversity=("cuisine_diversity_at_10", "mean"),
             avg_category_diversity=("category_diversity_at_10", "mean"),
             avg_coverage=("coverage", "mean"),
-            explanation_coverage=("explanation_coverage", "mean"),
         )
         .fillna("Not available")
     )
@@ -736,7 +656,7 @@ def evaluation_page() -> None:
         fig.update_layout(margin={"r": 20, "t": 50, "l": 20, "b": 20})
         st.plotly_chart(fig, use_container_width=True)
 
-    with st.expander("Raw evaluation output"):
+    with st.expander("Show internal evaluation output"):
         st.dataframe(results, use_container_width=True, hide_index=True)
 
 
@@ -751,7 +671,7 @@ def main() -> None:
             "Cafe/Food Spot Recommender",
             "Similar Places",
             "Data Coverage",
-            "Model Evaluation",
+            "Ranking Logic",
         ],
     )
     if page == "Project Overview":

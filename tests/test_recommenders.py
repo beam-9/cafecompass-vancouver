@@ -12,7 +12,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from config import ASPECTS, UBC_CENTER
-from recommenders import RecommenderConfig, distance_baseline, hybrid_recommender, metadata_match_scores, preference_vector
+from recommenders import DEFAULT_WEIGHTS, RecommenderConfig, distance_baseline, hybrid_recommender, metadata_match_scores, preference_vector
 
 
 def demo_frame() -> pd.DataFrame:
@@ -63,11 +63,16 @@ class RecommenderTests(unittest.TestCase):
         result = distance_baseline(df, config, top_k=2)
         self.assertEqual(result.iloc[0]["name"], "Study Cafe")
 
-    def test_hybrid_uses_aspect_match(self) -> None:
+    def test_hybrid_uses_metadata_match_and_distance(self) -> None:
         df = demo_frame()
         config = RecommenderConfig(start_lat=UBC_CENTER[0], start_lon=UBC_CENTER[1], max_distance_km=50)
         result = hybrid_recommender(df, "quiet study cafe", config, top_k=2)
         self.assertEqual(result.iloc[0]["name"], "Study Cafe")
+        self.assertIn("metadata_match_score", result.columns)
+        self.assertIn("distance_score", result.columns)
+
+    def test_default_weights_only_expose_active_app_signals(self) -> None:
+        self.assertEqual(set(DEFAULT_WEIGHTS), {"metadata_match_score", "distance_score"})
 
     def test_metadata_match_uses_cuisine_and_categories(self) -> None:
         df = demo_frame()
