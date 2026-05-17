@@ -135,15 +135,18 @@ def page_frame() -> None:
             margin-right: 5px;
             margin-top: 4px;
         }
-        .stButton > button {
+        .stButton > button,
+        div[data-testid="stFormSubmitButton"] > button {
             background: #ded8ca !important;
             color: #20201d !important;
             border: 1px solid #a89d88 !important;
             border-radius: 8px !important;
             font-weight: 700 !important;
         }
-        .stButton > button * { color: #20201d !important; }
-        .stButton > button:hover {
+        .stButton > button *,
+        div[data-testid="stFormSubmitButton"] > button * { color: #20201d !important; }
+        .stButton > button:hover,
+        div[data-testid="stFormSubmitButton"] > button:hover {
             background: #cfc6b5 !important;
             color: #20201d !important;
             border-color: #7e725e !important;
@@ -432,15 +435,15 @@ def map_page(df: pd.DataFrame, source: str) -> None:
             color_continuous_scale="Tealgrn" if color_col in view.columns and color_col not in {"cuisine", "categories"} else None,
         )
         fig.update_layout(mapbox_style="open-street-map", margin={"r": 0, "t": 0, "l": 0, "b": 0})
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         table_cols = [c for c in ["name", "cuisine", "categories", "latitude", "longitude", "stars", "review_count"] if c in view.columns]
         display_view = view[table_cols].copy()
         if "stars" in display_view:
-            display_view["stars"] = display_view["stars"].fillna("Not available")
+            display_view["stars"] = display_view["stars"].map(lambda value: "Not available" if pd.isna(value) else f"{float(value):.1f}")
         if "review_count" in display_view:
-            display_view["review_count"] = display_view["review_count"].fillna("Not available")
+            display_view["review_count"] = display_view["review_count"].map(lambda value: "Not available" if pd.isna(value) else f"{float(value):.0f}")
         with st.expander("Show place data used for this map"):
-            st.dataframe(display_view.sort_values(["cuisine", "name"]), use_container_width=True, hide_index=True)
+            st.dataframe(display_view.sort_values(["cuisine", "name"]), width="stretch", hide_index=True)
 
 
 def recommender_page(df: pd.DataFrame, source: str) -> None:
@@ -462,7 +465,6 @@ def recommender_page(df: pd.DataFrame, source: str) -> None:
             else:
                 lat, lon = LOCATIONS[location_mode]
             experience = st.selectbox("What are you looking for?", EXPERIENCES)
-            details = st.text_input("Optional details", placeholder="ramen, matcha, vegetarian, food court")
             cuisine = st.text_input("Cuisine filter", placeholder="Japanese, Chinese, coffee")
             max_distance = st.slider("How far are you willing to go?", 1.0, 25.0, 8.0, 0.5, format="%.1f km")
             min_rating = 0.0
@@ -470,24 +472,16 @@ def recommender_page(df: pd.DataFrame, source: str) -> None:
                 min_rating = st.slider("Minimum rating", 1.0, 5.0, 1.0, 0.5, format="%.1f ★")
             st.markdown(
                 "<div class='slider-panel'><strong>What should matter most?</strong><br>"
-                "<span>These sliders change the order of the recommendations.</span></div>",
+                "<span>Your selected experience is always the main ranking signal. These controls only adjust practical tradeoffs.</span></div>",
                 unsafe_allow_html=True,
             )
-            preference_weight = st.slider(
-                "Match my craving",
-                0.0,
-                1.0,
-                float(ranking_defaults["metadata_match_score"]),
-                0.05,
-                help="Higher means places with matching cuisine, category, or name words rank first.",
-            )
             distance_weight = st.slider(
-                "Stay nearby",
+                "Prefer closer places",
                 0.0,
                 1.0,
                 float(ranking_defaults["distance_score"]),
                 0.05,
-                help="Higher means closer places rank first.",
+                help="Higher means distance matters more. Lower means the app is more willing to show farther places that better match the selected experience or cuisine.",
             )
             rating_weight = 0.0
             if ratings_available:
@@ -506,7 +500,6 @@ def recommender_page(df: pd.DataFrame, source: str) -> None:
         "lon": LOCATIONS["UBC"][1],
         "location_mode": "UBC",
         "experience": EXPERIENCES[0],
-        "details": "",
         "cuisine": "",
         "max_distance": 8.0,
         "min_rating": 0.0,
@@ -517,8 +510,9 @@ def recommender_page(df: pd.DataFrame, source: str) -> None:
         },
     }
     if submitted or "recommender_params" not in st.session_state:
-        query_parts = [experience, details, f"near {location_mode}"]
+        query_parts = [experience, cuisine, f"near {location_mode}"]
         query = " ".join(part for part in query_parts if str(part).strip())
+        preference_weight = ranking_defaults["metadata_match_score"]
         st.session_state["recommender_params"] = {
             "lat": lat,
             "lon": lon,
@@ -649,7 +643,7 @@ def data_coverage_page(df: pd.DataFrame, source: str) -> None:
             else pd.DataFrame(columns=["cuisine", "count"])
         )
         cuisine_counts.columns = ["Cuisine", "Places"]
-        st.dataframe(cuisine_counts, use_container_width=True, hide_index=True)
+        st.dataframe(cuisine_counts, width="stretch", hide_index=True)
     with right:
         st.subheader("Top place types")
         category_counts = (
@@ -658,7 +652,7 @@ def data_coverage_page(df: pd.DataFrame, source: str) -> None:
             else pd.DataFrame(columns=["categories", "count"])
         )
         category_counts.columns = ["Place type", "Places"]
-        st.dataframe(category_counts, use_container_width=True, hide_index=True)
+        st.dataframe(category_counts, width="stretch", hide_index=True)
 
     with st.expander("Show rating availability"):
         st.write(
@@ -669,30 +663,27 @@ def data_coverage_page(df: pd.DataFrame, source: str) -> None:
 
 
 def evaluation_page() -> None:
-    st.title("Ranking Logic")
+    st.title("How Ranking Works")
     results = load_evaluation(processed_data_version())
-    if results.empty:
-        st.info("Evaluation results are not available yet. Run `python src/evaluation.py` after building features.")
-        return
 
     st.write(
-        "This page explains the active ranking model. The current app ranks places by combining preference metadata "
-        "fit with distance from the selected starting point."
+        "The current version of CafeCompass ranks places using signals that are actually available in the local "
+        "Vancouver dataset: place names, cuisine tags, categories, coordinates, and ratings when they exist."
     )
 
-    st.subheader("What each ranking method means")
+    st.subheader("Current ranking signals")
     model_cards = [
         (
-            "Distance baseline",
-            "Ranks places only by how close they are to the selected starting point.",
+            "Experience fit",
+            "The selected experience and cuisine filter are matched against place names, cuisine tags, and categories.",
         ),
         (
-            "Preference match",
-            "Compares the user's words with place names, cuisine tags, and categories.",
+            "Distance",
+            "Haversine distance estimates how far each place is from the selected starting point.",
         ),
         (
-            "Current hybrid",
-            "Combines preference match and distance fit, with sliders controlling the balance.",
+            "Ratings",
+            "Ratings are shown and can be used only when the current data source provides them.",
         ),
     ]
     model_cols = st.columns(3)
@@ -707,6 +698,17 @@ def evaluation_page() -> None:
                 """,
                 unsafe_allow_html=True,
             )
+
+    st.subheader("How I treat the current app honestly")
+    st.write(
+        "This is not claiming to understand review behaviour yet. It is a metadata-aware recommender that gives a "
+        "reasonable first pass for exploring Vancouver food spots. The review-aware part of the project is designed "
+        "as a future extension once reliable, permitted Vancouver review or community text is linked to places."
+    )
+
+    if results.empty:
+        st.info("Sanity-check results are not available yet. Run `python src/evaluation.py` after building features.")
+        return
 
     numeric = results.copy()
     metric_cols = st.columns(4)
@@ -727,11 +729,10 @@ def evaluation_page() -> None:
             avg_category_diversity=("category_diversity_at_10", "mean"),
             avg_coverage=("coverage", "mean"),
         )
-        .fillna("Not available")
     )
-    st.dataframe(summary, use_container_width=True, hide_index=True)
+    st.dataframe(summary.round(2), width="stretch", hide_index=True)
 
-    distance_ready = summary[summary["avg_distance_km"] != "Not available"].copy()
+    distance_ready = summary.dropna(subset=["avg_distance_km"]).copy()
     if not distance_ready.empty:
         fig = px.bar(
             distance_ready,
@@ -742,10 +743,7 @@ def evaluation_page() -> None:
             height=380,
         )
         fig.update_layout(margin={"r": 20, "t": 50, "l": 20, "b": 20})
-        st.plotly_chart(fig, use_container_width=True)
-
-    with st.expander("Show internal evaluation output"):
-        st.dataframe(results, use_container_width=True, hide_index=True)
+        st.plotly_chart(fig, width="stretch")
 
 
 def main() -> None:
@@ -759,7 +757,7 @@ def main() -> None:
             "Cafe/Food Spot Recommender",
             "Similar Places",
             "Data Coverage",
-            "Ranking Logic",
+            "How Ranking Works",
         ],
     )
     if page == "Project Overview":
