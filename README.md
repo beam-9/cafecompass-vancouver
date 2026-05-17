@@ -149,6 +149,20 @@ python src/run_pipeline.py --reddit
 
 That command requires `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, and `REDDIT_USER_AGENT` in `.env` or the shell.
 
+If Reddit API app creation is blocked, the project supports a manual community-text fallback. Copy `data/raw/community_text_template.csv` to `data/raw/community_text.csv`, add place-linked notes/snippets without usernames, then run:
+
+```bash
+python src/run_pipeline.py --community-text
+```
+
+For optional live rating/review-count metadata, set `YELP_FUSION_API_KEY` and run:
+
+```bash
+python src/run_pipeline.py --yelp-fusion
+```
+
+Yelp Fusion is only used for metadata enrichment, not full review-text NLP.
+
 Individual stages can also be run directly:
 
 ```bash

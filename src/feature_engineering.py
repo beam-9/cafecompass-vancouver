@@ -36,6 +36,15 @@ def build_recommender_features() -> pd.DataFrame:
     if "place_id" not in profile.columns:
         profile["place_id"] = pd.Series(dtype=str)
     df = master.merge(profile, on="place_id", how="left")
+    fusion_path = PROCESSED_DIR / "yelp_fusion_enrichment.csv"
+    if fusion_path.exists():
+        try:
+            fusion = pd.read_csv(fusion_path)
+        except EmptyDataError:
+            fusion = pd.DataFrame(columns=["place_id"])
+        if not fusion.empty and "place_id" in fusion.columns:
+            fusion = fusion.rename(columns={"rating": "fusion_rating", "review_count": "fusion_review_count"})
+            df = df.merge(fusion[["place_id", "fusion_rating", "fusion_review_count"]], on="place_id", how="left")
     if "name" in df:
         df = df.dropna(subset=["name"])
     if {"latitude", "longitude"}.issubset(df.columns):
@@ -59,6 +68,10 @@ def build_recommender_features() -> pd.DataFrame:
         df["stars"] = np.nan
     if "review_count" not in df:
         df["review_count"] = 0
+    if "fusion_rating" in df:
+        df["stars"] = pd.to_numeric(df["stars"], errors="coerce").fillna(pd.to_numeric(df["fusion_rating"], errors="coerce"))
+    if "fusion_review_count" in df:
+        df["review_count"] = pd.to_numeric(df["review_count"], errors="coerce").fillna(pd.to_numeric(df["fusion_review_count"], errors="coerce"))
     if "is_open" not in df:
         df["is_open"] = np.nan
     if "evidence_snippets_json" not in df:

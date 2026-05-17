@@ -4,6 +4,7 @@ import argparse
 
 from aspect_extraction import build_review_aspect_scores
 from clean_reviews import clean_yelp_reviews, clean_yelp_tips
+from community_text_import import import_community_text
 from entity_resolution import build_place_master
 from evaluation import run_evaluation
 from feature_engineering import build_recommender_features
@@ -16,6 +17,7 @@ from reddit_place_linking import link_reddit_to_places
 from sentiment_scoring import build_place_aspect_profile
 from vancouver_open_data import collect_business_licences, collect_food_vendors
 from yelp_kaggle_setup import download_yelp_from_kaggle, validate_yelp_files
+from yelp_fusion_enrichment import enrich_with_yelp_fusion
 
 
 def run_yelp_pipeline() -> None:
@@ -42,6 +44,20 @@ def run_reddit_pipeline() -> None:
     link_reddit_to_places()
     build_review_aspect_scores()
     build_place_aspect_profile()
+    build_recommender_features()
+    run_evaluation()
+
+
+def run_community_pipeline() -> None:
+    import_community_text()
+    build_review_aspect_scores()
+    build_place_aspect_profile()
+    build_recommender_features()
+    run_evaluation()
+
+
+def run_yelp_fusion_pipeline() -> None:
+    enrich_with_yelp_fusion()
     build_recommender_features()
     run_evaluation()
 
@@ -82,6 +98,16 @@ def main() -> None:
         action="store_true",
         help="Collect/link Reddit community text, then rebuild review-aware features.",
     )
+    parser.add_argument(
+        "--community-text",
+        action="store_true",
+        help="Import manually supplied community text from data/raw/community_text.csv.",
+    )
+    parser.add_argument(
+        "--yelp-fusion",
+        action="store_true",
+        help="Use Yelp Fusion API for optional ratings/review-count metadata enrichment.",
+    )
     args = parser.parse_args()
 
     if args.demo:
@@ -98,6 +124,12 @@ def main() -> None:
         return
     if args.reddit:
         run_reddit_pipeline()
+        return
+    if args.community_text:
+        run_community_pipeline()
+        return
+    if args.yelp_fusion:
+        run_yelp_fusion_pipeline()
         return
     parser.print_help()
 
