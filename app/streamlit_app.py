@@ -21,6 +21,12 @@ from recommenders import DEFAULT_WEIGHTS, RecommenderConfig, hybrid_recommender
 
 st.set_page_config(page_title="CafeCompass Vancouver", layout="wide")
 
+APP_RANKING_DEFAULTS = {
+    "metadata_match_score": 0.65,
+    "distance_score": 0.35,
+    "rating_score": 0.0,
+}
+
 LOCATIONS = {
     "UBC": UBC_CENTER,
     "Downtown Vancouver": VANCOUVER_CENTER,
@@ -446,6 +452,7 @@ def recommender_page(df: pd.DataFrame, source: str) -> None:
 
     controls, results_col = st.columns([1, 2])
     ratings_available = "stars" in df and pd.to_numeric(df["stars"], errors="coerce").gt(0).any()
+    ranking_defaults = {**APP_RANKING_DEFAULTS, **DEFAULT_WEIGHTS}
     with controls:
         with st.form("recommendation_controls"):
             location_mode = st.selectbox("Starting location", [*LOCATIONS.keys(), "Custom latitude/longitude"])
@@ -470,7 +477,7 @@ def recommender_page(df: pd.DataFrame, source: str) -> None:
                 "Match my craving",
                 0.0,
                 1.0,
-                float(DEFAULT_WEIGHTS["metadata_match_score"]),
+                float(ranking_defaults["metadata_match_score"]),
                 0.05,
                 help="Higher means places with matching cuisine, category, or name words rank first.",
             )
@@ -478,7 +485,7 @@ def recommender_page(df: pd.DataFrame, source: str) -> None:
                 "Stay nearby",
                 0.0,
                 1.0,
-                float(DEFAULT_WEIGHTS["distance_score"]),
+                float(ranking_defaults["distance_score"]),
                 0.05,
                 help="Higher means closer places rank first.",
             )
@@ -504,9 +511,9 @@ def recommender_page(df: pd.DataFrame, source: str) -> None:
         "max_distance": 8.0,
         "min_rating": 0.0,
         "weights": {
-            "metadata_match_score": DEFAULT_WEIGHTS["metadata_match_score"],
-            "distance_score": DEFAULT_WEIGHTS["distance_score"],
-            "rating_score": 0.0,
+            "metadata_match_score": ranking_defaults["metadata_match_score"],
+            "distance_score": ranking_defaults["distance_score"],
+            "rating_score": ranking_defaults["rating_score"],
         },
     }
     if submitted or "recommender_params" not in st.session_state:
