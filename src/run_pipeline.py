@@ -11,6 +11,8 @@ from filter_vancouver import filter_vancouver_businesses
 from load_yelp_data import inspect_businesses
 from make_demo_data import build_demo_data
 from osm_collector import collect_osm_food_places
+from reddit_collector import collect_reddit_discussions
+from reddit_place_linking import link_reddit_to_places
 from sentiment_scoring import build_place_aspect_profile
 from vancouver_open_data import collect_business_licences, collect_food_vendors
 from yelp_kaggle_setup import download_yelp_from_kaggle, validate_yelp_files
@@ -33,6 +35,15 @@ def run_yelp_setup() -> None:
     if not download_yelp_from_kaggle():
         raise SystemExit(1)
     inspect_businesses()
+
+
+def run_reddit_pipeline() -> None:
+    collect_reddit_discussions()
+    link_reddit_to_places()
+    build_review_aspect_scores()
+    build_place_aspect_profile()
+    build_recommender_features()
+    run_evaluation()
 
 
 def run_local_metadata_pipeline() -> None:
@@ -66,6 +77,11 @@ def main() -> None:
         action="store_true",
         help="Collect actual Vancouver OSM and City Open Data metadata for the map. No review text required.",
     )
+    parser.add_argument(
+        "--reddit",
+        action="store_true",
+        help="Collect/link Reddit community text, then rebuild review-aware features.",
+    )
     args = parser.parse_args()
 
     if args.demo:
@@ -79,6 +95,9 @@ def main() -> None:
         return
     if args.local_metadata:
         run_local_metadata_pipeline()
+        return
+    if args.reddit:
+        run_reddit_pipeline()
         return
     parser.print_help()
 

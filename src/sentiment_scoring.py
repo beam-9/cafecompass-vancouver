@@ -53,7 +53,12 @@ def build_place_aspect_profile() -> pd.DataFrame:
     except EmptyDataError:
         master = pd.DataFrame()
     if "business_id" in aspects.columns and not master.empty and "yelp_business_id" in master.columns:
-        lookup = master.set_index("yelp_business_id")["place_id"].to_dict()
+        lookup = (
+            master.dropna(subset=["yelp_business_id"])
+            .drop_duplicates(subset=["yelp_business_id"])
+            .set_index("yelp_business_id")["place_id"]
+            .to_dict()
+        )
         aspects["place_id"] = aspects["place_id"].fillna(aspects["business_id"].map(lookup))
 
     aspects = aspects.dropna(subset=["place_id"])

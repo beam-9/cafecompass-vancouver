@@ -25,6 +25,12 @@ QUERIES = [
 
 
 def _credentials_available() -> bool:
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
     return all(os.getenv(key) for key in ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "REDDIT_USER_AGENT"])
 
 
@@ -43,12 +49,10 @@ def collect_reddit_discussions(limit_per_query: int = 25, include_comments: bool
 
     try:
         import praw
-        from dotenv import load_dotenv
     except ImportError:
         print("Install praw and python-dotenv to use the optional Reddit collector.")
         return pd.DataFrame()
 
-    load_dotenv()
     reddit = praw.Reddit(
         client_id=os.getenv("REDDIT_CLIENT_ID"),
         client_secret=os.getenv("REDDIT_CLIENT_SECRET"),
@@ -98,4 +102,3 @@ def collect_reddit_discussions(limit_per_query: int = 25, include_comments: bool
 
 if __name__ == "__main__":
     collect_reddit_discussions()
-

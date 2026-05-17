@@ -56,7 +56,7 @@ def _load_text_sources() -> list[pd.DataFrame]:
     files = [
         ("yelp_review", PROCESSED_DIR / "vancouver_reviews_clean.csv", "review_id", "business_id", "text", "date"),
         ("yelp_tip", PROCESSED_DIR / "vancouver_tips_clean.csv", None, "business_id", "text", "date"),
-        ("reddit", PROCESSED_DIR / "reddit_vancouver_food_discussions.csv", None, None, "body", "created_utc"),
+        ("reddit_linked", PROCESSED_DIR / "reddit_place_mentions.csv", "source_id", "place_id", "text", "text_date"),
     ]
     for source, path, id_col, place_col, text_col, date_col in files:
         if not path.exists():
@@ -68,8 +68,8 @@ def _load_text_sources() -> list[pd.DataFrame]:
             {
                 "source": source,
                 "source_id": df[id_col] if id_col and id_col in df.columns else [f"{source}_{i}" for i in range(len(df))],
-                "business_id": df[place_col] if place_col and place_col in df.columns else None,
-                "place_id": None,
+                "business_id": df[place_col] if place_col == "business_id" and place_col in df.columns else None,
+                "place_id": df[place_col] if place_col == "place_id" and place_col in df.columns else None,
                 "text": df[text_col],
                 "text_date": df[date_col] if date_col in df.columns else None,
             }

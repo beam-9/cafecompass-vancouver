@@ -141,6 +141,14 @@ python src/run_pipeline.py --yelp
 
 Yelp review text is used for behavioural and emotional experience signals. Yelp star ratings are preserved for analysis, but they are not a default ranking signal at this stage.
 
+Important current data note: the downloaded Yelp Open Dataset release does not include Vancouver businesses. The project therefore keeps Yelp available as a prototype review-text source, while Vancouver-specific behavioural signals should come from the Reddit API pipeline:
+
+```bash
+python src/run_pipeline.py --reddit
+```
+
+That command requires `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, and `REDDIT_USER_AGENT` in `.env` or the shell.
+
 Individual stages can also be run directly:
 
 ```bash
