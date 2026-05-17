@@ -17,4 +17,4 @@ sentence-transformers>=2.2
 praw>=7.7
 folium>=0.15
 streamlit-folium>=0.18
-
+kaggle>=1.6

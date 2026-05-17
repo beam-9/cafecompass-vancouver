@@ -45,6 +45,9 @@ MASTER_COLUMNS = [
     "is_open",
     "hours",
     "official_business_type",
+    "yelp_osm_match_score",
+    "yelp_osm_match_distance_m",
+    "match_quality",
 ]
 
 
@@ -99,6 +102,9 @@ def build_place_master() -> pd.DataFrame:
                 "is_open": row.get("is_open"),
                 "hours": row.get("hours"),
                 "official_business_type": np.nan,
+                "yelp_osm_match_score": np.nan,
+                "yelp_osm_match_distance_m": np.nan,
+                "match_quality": "yelp_only",
             }
         )
 
@@ -138,10 +144,21 @@ def build_place_master() -> pd.DataFrame:
                 "is_open": np.nan,
                 "hours": osm_row.get("opening_hours"),
                 "official_business_type": np.nan,
+                "yelp_osm_match_score": np.nan,
+                "yelp_osm_match_distance_m": np.nan,
+                "match_quality": "osm_only",
             }
         else:
+            sim = fuzz.token_set_ratio(norm, master.loc[matched_idx, "normalized_name"])
+            dist = distance_meters(
+                (osm_row.get("latitude"), osm_row.get("longitude")),
+                (master.loc[matched_idx, "latitude"], master.loc[matched_idx, "longitude"]),
+            )
             master.loc[matched_idx, "osm_id"] = osm_row.get("osm_id")
             master.loc[matched_idx, "source_flags"] = f"{master.loc[matched_idx, 'source_flags']}|osm"
+            master.loc[matched_idx, "yelp_osm_match_score"] = sim
+            master.loc[matched_idx, "yelp_osm_match_distance_m"] = dist
+            master.loc[matched_idx, "match_quality"] = "high" if sim >= 92 and dist <= 150 else "medium"
             if pd.isna(master.loc[matched_idx, "cuisine"]):
                 master.loc[matched_idx, "cuisine"] = osm_row.get("cuisine")
 

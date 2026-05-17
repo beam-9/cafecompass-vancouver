@@ -2,21 +2,21 @@ query,model,precision_at_10_aspect,category_diversity_at_10,cuisine_diversity_at
 quiet study cafe near UBC,hybrid,0.8,9,4,4.57026728375384,10,1.0
 quiet study cafe near UBC,distance,0.8,9,4,4.57026728375384,10,1.0
 quiet study cafe near UBC,rating_popularity,0.4,8,5,,10,1.0
-cheap eats near Downtown,hybrid,0.6,10,5,1.3542266971249226,10,1.0
+cheap eats near Downtown,hybrid,0.7,10,5,1.6067428108776625,10,1.0
 cheap eats near Downtown,distance,0.4,10,5,1.020817334998814,10,1.0
 cheap eats near Downtown,rating_popularity,0.5,8,5,,10,1.0
-date night restaurant in Kitsilano,hybrid,0.6,10,5,3.467630412312271,10,1.0
+date night restaurant in Kitsilano,hybrid,0.5,10,4,3.0083535329159177,10,1.0
 date night restaurant in Kitsilano,distance,0.4,10,5,2.854611168890854,10,1.0
 date night restaurant in Kitsilano,rating_popularity,0.3,8,5,,10,1.0
-hidden gem ramen Vancouver,hybrid,0.2,10,5,1.250391564894885,10,1.0
+hidden gem ramen Vancouver,hybrid,0.2,10,5,1.2503915648948845,10,1.0
 hidden gem ramen Vancouver,distance,0.1,10,5,1.020817334998814,10,1.0
 hidden gem ramen Vancouver,rating_popularity,0.1,8,5,,10,1.0
 group dinner Mount Pleasant,hybrid,0.6,10,5,1.4718143387868237,10,1.0
 group dinner Mount Pleasant,distance,0.7,10,6,1.4112031966544,10,1.0
 group dinner Mount Pleasant,rating_popularity,0.5,8,5,,10,1.0
-dessert spot Vancouver,hybrid,0.7,10,5,1.5380685269095613,10,1.0
+dessert spot Vancouver,hybrid,0.7,10,6,2.095162083517766,10,1.0
 dessert spot Vancouver,distance,0.4,10,5,1.020817334998814,10,1.0
 dessert spot Vancouver,rating_popularity,0.5,8,5,,10,1.0
-late night food Vancouver,hybrid,0.1,10,5,1.176675258384805,10,1.0
+late night food Vancouver,hybrid,0.1,10,5,1.020817334998814,10,1.0
 late night food Vancouver,distance,0.1,10,5,1.020817334998814,10,1.0
 late night food Vancouver,rating_popularity,0.0,8,5,,10,1.0

@@ -43,7 +43,10 @@ def clean_yelp_reviews(yelp_dir: Path = YELP_RAW_DIR, chunksize: int = 100_000, 
     out = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame(columns=REVIEW_COLUMNS + ["clean_text"])
     out = out.drop_duplicates(subset=["review_id"])
     out.to_csv(PROCESSED_DIR / "vancouver_reviews_clean.csv", index=False)
+    coverage = out.groupby("business_id").size().reset_index(name="clean_review_count") if not out.empty else pd.DataFrame(columns=["business_id", "clean_review_count"])
+    coverage.to_csv(PROCESSED_DIR / "yelp_review_coverage_by_business.csv", index=False)
     print(f"Saved {len(out):,} cleaned Vancouver Yelp reviews.")
+    print(f"Yelp businesses with cleaned reviews: {coverage['business_id'].nunique() if not coverage.empty else 0:,}")
     return out
 
 
@@ -83,4 +86,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

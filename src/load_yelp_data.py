@@ -62,6 +62,15 @@ def inspect_businesses(yelp_dir: Path = YELP_RAW_DIR, chunksize: int = 100_000) 
             "Use Yelp as a prototype review-text source and rely on OSM, Vancouver Open Data, "
             "and optional Reddit for Vancouver-specific coverage."
         )
+    pd.DataFrame(
+        [
+            {
+                "total_businesses": total,
+                "vancouver_available": has_vancouver,
+                "vancouver_food_businesses": vancouver_food,
+            }
+        ]
+    ).to_csv(INTERIM_DIR / "yelp_vancouver_coverage_summary.csv", index=False)
     return city_counts_df
 
 
@@ -75,4 +84,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -13,9 +13,11 @@ from make_demo_data import build_demo_data
 from osm_collector import collect_osm_food_places
 from sentiment_scoring import build_place_aspect_profile
 from vancouver_open_data import collect_business_licences, collect_food_vendors
+from yelp_kaggle_setup import download_yelp_from_kaggle, validate_yelp_files
 
 
 def run_yelp_pipeline() -> None:
+    validate_yelp_files()
     inspect_businesses()
     filter_vancouver_businesses()
     clean_yelp_reviews()
@@ -25,6 +27,12 @@ def run_yelp_pipeline() -> None:
     build_place_aspect_profile()
     build_recommender_features()
     run_evaluation()
+
+
+def run_yelp_setup() -> None:
+    if not download_yelp_from_kaggle():
+        raise SystemExit(1)
+    inspect_businesses()
 
 
 def run_local_metadata_pipeline() -> None:
@@ -49,6 +57,11 @@ def main() -> None:
         help="Run the Yelp Open Dataset path. Requires data/raw/yelp/*.json files.",
     )
     parser.add_argument(
+        "--setup-yelp",
+        action="store_true",
+        help="Download/prepare Yelp Open Dataset files from Kaggle, then inspect Vancouver coverage.",
+    )
+    parser.add_argument(
         "--local-metadata",
         action="store_true",
         help="Collect actual Vancouver OSM and City Open Data metadata for the map. No review text required.",
@@ -57,6 +70,9 @@ def main() -> None:
 
     if args.demo:
         build_demo_data()
+        return
+    if args.setup_yelp:
+        run_yelp_setup()
         return
     if args.yelp:
         run_yelp_pipeline()

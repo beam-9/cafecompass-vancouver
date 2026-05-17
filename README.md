@@ -132,11 +132,14 @@ Run the pipeline modules as needed:
 python src/run_pipeline.py --demo
 ```
 
-That command builds local ignored files in `data/processed/` from the committed sample dataset. For the Yelp Open Dataset path, place the JSONL files under `data/raw/yelp/` and run:
+That command builds local ignored files in `data/processed/` from the committed sample dataset. For the Yelp Open Dataset path, configure Kaggle credentials with `~/.kaggle/kaggle.json` or `KAGGLE_USERNAME` and `KAGGLE_KEY`, then run:
 
 ```bash
+python src/run_pipeline.py --setup-yelp
 python src/run_pipeline.py --yelp
 ```
+
+Yelp review text is used for behavioural and emotional experience signals. Yelp star ratings are preserved for analysis, but they are not a default ranking signal at this stage.
 
 Individual stages can also be run directly:
 

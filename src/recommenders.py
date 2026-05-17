@@ -14,7 +14,7 @@ DEFAULT_WEIGHTS = {
     "aspect_match_score": 0.30,
     "semantic_similarity_score": 0.20,
     "distance_score": 0.15,
-    "rating_score": 0.10,
+    "rating_score": 0.00,
     "confidence_score": 0.10,
     "context_score": 0.10,
     "hidden_gem_score": 0.05,

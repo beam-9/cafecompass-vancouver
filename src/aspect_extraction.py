@@ -19,6 +19,12 @@ ASPECT_KEYWORDS = {
     "food_quality": ["delicious", "tasty", "fresh", "flavourful", "flavorful", "bland", "dry", "overcooked", "crispy", "rich", "amazing"],
     "dessert_drinks": ["matcha", "coffee", "latte", "tea", "bubble tea", "cake", "pastry", "pastries", "dessert", "croissant", "sweet"],
     "late_night": ["late night", "open late", "midnight", "24 hour", "after hours"],
+    "comfort_cozy": ["cozy", "comfortable", "comfy", "warm", "welcoming", "relaxed", "homey", "chill", "calm", "peaceful"],
+    "crowding_noise": ["crowded", "busy", "packed", "loud", "noisy", "line", "queue", "wait", "rushed", "cramped"],
+    "study_work_suitability": ["study", "studying", "laptop", "work", "working", "wifi", "wi-fi", "outlet", "plug", "stay for hours"],
+    "value_satisfaction": ["worth it", "good value", "reasonable", "affordable", "cheap", "pricey", "overpriced", "portion", "filling"],
+    "service_warmth": ["friendly", "kind", "welcoming", "attentive", "rude", "helpful", "staff", "service", "patient"],
+    "special_excitement": ["special", "memorable", "fun", "exciting", "impressed", "wow", "celebration", "birthday", "anniversary"],
 }
 
 SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")

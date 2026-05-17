@@ -43,10 +43,15 @@ ASPECTS = [
     "food_quality",
     "dessert_drinks",
     "late_night",
+    "comfort_cozy",
+    "crowding_noise",
+    "study_work_suitability",
+    "value_satisfaction",
+    "service_warmth",
+    "special_excitement",
 ]
 
 
 def ensure_dirs() -> None:
     for path in [RAW_DIR, INTERIM_DIR, PROCESSED_DIR, MODELS_DIR]:
         path.mkdir(parents=True, exist_ok=True)
-
