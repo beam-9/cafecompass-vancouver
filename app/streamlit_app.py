@@ -54,6 +54,9 @@ def page_frame() -> None:
         """
         <style>
         .stApp { background: #f7f4ee; color: #20201d; }
+        header[data-testid="stHeader"],
+        div[data-testid="stDecoration"] { background: #f7f4ee !important; }
+        header[data-testid="stHeader"] * { color: #20201d !important; }
         .stApp p, .stApp li, .stApp label, .stApp span, .stApp div { color: #20201d; }
         section[data-testid="stSidebar"] { background: #24231f; }
         section[data-testid="stSidebar"] * { color: #f7f4ee; }
