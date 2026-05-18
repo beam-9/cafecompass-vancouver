@@ -165,6 +165,11 @@ def load_features(data_version: float) -> tuple[pd.DataFrame, str]:
         df = pd.read_csv(path)
         if not df.empty:
             return df, "processed"
+    deploy_path = ROOT / "data" / "sample" / "vancouver_recommender_features.csv"
+    if deploy_path.exists():
+        df = pd.read_csv(deploy_path)
+        if not df.empty:
+            return df, "deploy"
     sample_path = ROOT / "data" / "sample" / "demo_recommender_features.csv"
     if sample_path.exists():
         return pd.read_csv(sample_path), "sample"
@@ -178,12 +183,22 @@ def load_evaluation(data_version: float) -> pd.DataFrame:
         df = pd.read_csv(path)
         if not df.empty:
             return df
+    deploy_path = ROOT / "data" / "sample" / "vancouver_evaluation_results.csv"
+    if deploy_path.exists():
+        df = pd.read_csv(deploy_path)
+        if not df.empty:
+            return df
     sample_path = ROOT / "data" / "sample" / "demo_evaluation_results.csv"
     return pd.read_csv(sample_path) if sample_path.exists() else pd.DataFrame()
 
 
 def processed_data_version() -> float:
-    paths = [PROCESSED_DIR / "recommender_features.csv", PROCESSED_DIR / "evaluation_results.csv"]
+    paths = [
+        PROCESSED_DIR / "recommender_features.csv",
+        PROCESSED_DIR / "evaluation_results.csv",
+        ROOT / "data" / "sample" / "vancouver_recommender_features.csv",
+        ROOT / "data" / "sample" / "vancouver_evaluation_results.csv",
+    ]
     existing = [path.stat().st_mtime for path in paths if path.exists()]
     return max(existing, default=0.0)
 
