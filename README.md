@@ -1,5 +1,7 @@
 # CafeCompass Vancouver: Metadata-Aware Café and Food Spot Recommender
 
+LINK TO APP: https://cafecompass.streamlit.app/
+
 CafeCompass Vancouver is a Streamlit recommender app for exploring cafés, restaurants, and food spots around Vancouver. I built it because, as an international student at UBC, I spent much of my first year studying in my dorm instead of exploring the city. I wanted a project that could help answer a more personal question than "what is highly rated near me?": **what place fits the kind of experience I want right now?**
 
 The current version is intentionally metadata-aware rather than fully review-aware. It recommends places using available Vancouver place metadata: names, cuisine tags, categories, coordinates, and ratings when they exist.
